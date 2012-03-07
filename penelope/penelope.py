@@ -4,7 +4,7 @@ __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012 Alberto Pettarin (pettarin gmail.com)'
 __version__     = 'v1.04'
-__date__        = '2012-03-05'
+__date__        = '2012-03-07'
 __description__ = 'Penelope allows you to format your dictionaries for the Bookeen Cybook Odyssey e-reader'
 
 

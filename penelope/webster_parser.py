@@ -3,8 +3,8 @@
 __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012 Alberto Pettarin (pettarin gmail.com)'
-__version__     = 'v1.03'
-__date__        = '2012-03-05'
+__version__     = 'v1.04'
+__date__        = '2012-03-07'
 __description__ = 'Parse the given definition list for penelope.py'
 
 
