@@ -3,13 +3,14 @@
 __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012 Alberto Pettarin (pettarin gmail.com)'
-__version__     = 'v1.04'
-__date__        = '2012-03-07'
+__version__     = 'v1.05'
+__date__        = '2012-03-13'
 __description__ = 'Penelope allows you to format your dictionaries for the Bookeen Cybook Odyssey e-reader'
 
 
 ### BEGIN changelog ###
 #
+# 1.05 Added StarDict output
 # 1.04 Code refactoring before uploading to Google Code
 # 1.03 Fixed a bug when using --xml and --parser
 # 1.02 Added XML dictionary input
@@ -17,7 +18,7 @@ __description__ = 'Penelope allows you to format your dictionaries for the Booke
 #
 ### END changelog ###
 
-import getopt, gzip, imp, os, sqlite3, struct, sys, zipfile
+import getopt, gzip, imp, os, sqlite3, struct, subprocess, sys, zipfile
 
 
 
@@ -420,7 +421,7 @@ def write_to_StarDict_format(config, data, debug):
     # write info file
     info_file = open(info_filename, "w")
     info_file.write("StarDict's dict ifo file\n")
-    info_file.write("version=2.4.8\n")
+    info_file.write("version=2.4.2\n")
     info_file.write("wordcount=" + str(len(keys)) + "\n")
     info_file.write("idxfilesize=" + str(os.path.getsize(index_filename)) + "\n")
     info_file.write("bookname=" + title + "\n")
@@ -434,6 +435,54 @@ def write_to_StarDict_format(config, data, debug):
     info_file.close()
       
 ### END write_to_Odyssey_format ###
+
+
+### BEGIN compress_install_file ###
+# compress_install_file(dictionary_filename, index_filename, zip_filename)
+# compress dictionary_filename and index_filename into zip_filename
+#
+def compress_install_file(dictionary_filename, index_filename, zip_filename):
+    
+    print_info("Creating zip file " + zip_filename + "...")
+    zip_file = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
+    zip_file.write(dictionary_filename)
+    zip_file.write(index_filename)
+    zip_file.close()
+    print_info("File " + zip_filename + " created successfully!")
+
+
+### END compress_StarDict_dictionary ###
+
+
+### BEGIN compress_StarDict_dictionary ###
+# compress_StarDict_dictionary(dictionary_filename, compressed_dictionary_filename, delete_uncompressed)
+# compress dictionary_filename into compressed_dictionary_filename
+# if delete_uncompressed is True, delete dictionary_filename
+#
+# Note: if dictzip is not found, simply keep the dictionary uncompressed
+#
+def compress_StarDict_dictionary(dictionary_filename, compressed_dictionary_filename, delete_uncompressed):
+
+    # TODO: compressing with gzip library seems not working, I need to call dictzip
+
+    # compress the dictionary file with dictzip
+    print_info("Creating compressed dictionary file " + compressed_dictionary_filename + "...") 
+    return_code = subprocess.call(["dictzip", "-k", dictionary_filename])
+    
+    # check whether the compression was successful
+    if return_code == 0:
+        print_info("File " + compressed_dictionary_filename + " created successfully!")
+        
+        # delete the uncompressed dictionary
+        if delete_uncompressed:
+            os.remove(dictionary_filename)
+    else:
+        print_info("File " + compressed_dictionary_filename + " cannot be created. Check that dictzip is installed in your system.")
+    
+    return return_code
+
+### END compress_StarDict_dictionary ###
+
 
 ### BEGIN read_command_line_parameters ###
 # read_command_line_parameters()
@@ -456,6 +505,7 @@ def write_to_StarDict_format(config, data, debug):
 # --parser : parser to be used while parsing input dictionary
 # --sd : input format is StarDict (default)
 # --xml : input format is XML
+# --output-sd : output format is StarDict
 def read_command_line_parameters(argv):
 
     try:
@@ -906,21 +956,19 @@ def main():
         # create zip .install file, if the user asked for it
         if create_zip:
             zip_filename = dictionary_filename + ".install"
-            print_info("Creating zip file " + zip_filename)
-            zip_file = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
-            zip_file.write(dictionary_filename)
-            zip_file.write(index_filename)
-            zip_file.close()
-            print_info("File " + zip_filename + " created successfully!")
+            compress_install_file(dictionary_filename, index_filename, zip_filename)
     
     # write out to StarDict format
     if output_format == 'sd':
         print_info('Outputting in StarDict format to file...')  
         write_to_StarDict_format(config, parsed_data, debug)
+        delete_uncompressed = not debug
+        return_code = compress_StarDict_dictionary(dictionary_filename, compressed_dictionary_filename, delete_uncompressed)
         
-        # compress_StarDict_files(dictionary_filename, compressed_dictionary_filename, True)
-        
-        print_info("Files " + compressed_dictionary_filename + "," + index_filename + "," + info_filename + " created successfully!")
+        if return_code == 0:
+            print_info("Files " + compressed_dictionary_filename + ", " + index_filename + ", and " + info_filename + " created successfully!")
+        else:
+            print_info("Files " + dictionary_filename + ", " + index_filename + ", and " + info_filename + " created successfully!")
 
 ### END main ###
 
