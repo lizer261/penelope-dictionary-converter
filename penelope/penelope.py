@@ -24,7 +24,6 @@ import getopt, gzip, imp, os, sqlite3, struct, sys, zipfile
 ### BEGIN collate_function ###
 # collate_function(string1, string2)
 # define the string comparison function for the index file
-
 def collate_function(string1, string2):
     
     return cmp(string1.lower(), string2.lower())
@@ -128,11 +127,11 @@ def read_from_xml_format(xml_input_filename, ignore_case):
 
 
 ### BEGIN write_to_Odyssey_format ###
-# write_to_Odyssey_format(config, data)
+# write_to_Odyssey_format(config, data, debug)
 # write data to the Odyssey format, using the config settings
 #
 # config = [ dictionary_filename, index_filename, language_from, language_to,
-#            license, copyright, title, description, debug ]
+#            license_string, copyright_string, title, description, year, info_filename ]
 #
 # data = [ word, include, synonyms, substitutions, definition ]
 #
@@ -142,7 +141,6 @@ def read_from_xml_format(xml_input_filename, ignore_case):
 #        synonyms is a list of alternative strings for word
 #        substitutions is a list of pairs [ word_to_replace, replacement ]
 #        definition is the definition of word
-
 def write_to_Odyssey_format(config, data, debug):
 
     # Note: chunks on Odyssey seems have size between
@@ -155,11 +153,12 @@ def write_to_Odyssey_format(config, data, debug):
       index_filename,
       language_from,
       language_to,
-      license,
-      copyright,
+      license_string,
+      copyright_string,
       title,
       description,
-      year ] = config
+      year,
+      info_filename ] = config
 
     # copy empty.idx into index_filename
     input_file = open('empty.idx', 'r')
@@ -282,8 +281,8 @@ def write_to_Odyssey_format(config, data, debug):
     sql_cursor.execute('update T_DictInfo set F_xhtmlHeader=?', (header,))
     sql_cursor.execute('update T_DictInfo set F_LangFrom=?', (language_from,))
     sql_cursor.execute('update T_DictInfo set F_LangTo=?', (language_to,))
-    sql_cursor.execute('update T_DictInfo set F_Licence=?', (license,))
-    sql_cursor.execute('update T_DictInfo set F_Copyright=?', (copyright,))
+    sql_cursor.execute('update T_DictInfo set F_Licence=?', (license_string,))
+    sql_cursor.execute('update T_DictInfo set F_Copyright=?', (copyright_string,))
     sql_cursor.execute('update T_DictInfo set F_Title=?', (title,))
     sql_cursor.execute('update T_DictInfo set F_Description=?', (description,))
     sql_cursor.execute('update T_DictInfo set F_Year=?', (year,))
@@ -300,6 +299,141 @@ def write_to_Odyssey_format(config, data, debug):
 
 ### END write_to_Odyssey_format ###
 
+
+### BEGIN write_to_StarDict_format ###
+# write_to_StarDict_format(config, data, debug)
+# write data to the StarDict format, using the config settings
+#
+# config = [ dictionary_filename, index_filename, language_from, language_to,
+#            license_string, copyright_string, title, description, year, info_filename ]
+#
+# data = [ word, include, synonyms, substitutions, definition ]
+#
+# where:
+#        word is the sorting key
+#        include is a boolean saying whether the word should be included
+#        synonyms is a list of alternative strings for word
+#        substitutions is a list of pairs [ word_to_replace, replacement ]
+#        definition is the definition of word
+def write_to_StarDict_format(config, data, debug):
+
+    # read config parameters
+    [ dictionary_filename,
+      index_filename,
+      language_from,
+      language_to,
+      license_string,
+      copyright_string,
+      title,
+      description,
+      year,
+      info_filename ] = config
+    
+    
+    # open debug file
+    if debug:
+        debug_file = open("debug." + dictionary_filename, "w")
+
+    # keep a dictionary of words, with their sql_tuples
+    global_dictionary = dict()
+
+    # keep a global list of substitutions
+    global_substitutions = []
+
+    # sort input data
+    # data.sort()
+    
+    # open dictionary file
+    dictionary_file = open(dictionary_filename, "w")
+    byte_count = 0
+    
+    for d in data:
+    
+        # get data
+        word = d[0]
+        include = d[1]
+        synonyms = d[2]
+        substitutions = d[3]
+        if debug:
+            # augment readability of c_* files
+            definition = d[4] + "\n"
+        else:
+            # save 1 byte
+            definition = d[4]
+        definition_length = len(definition)
+        
+        if (include):
+            # write definition to debug file
+            if debug:
+                debug_file.write(definition)
+        
+            # write definition to current chunk file
+            dictionary_file.write(definition)
+          
+            # insert word into global dictionary
+            sql_tuple = (word, byte_count, definition_length, 0)
+            global_dictionary[word] = sql_tuple
+        
+            # insert synonyms into index file, pointing at current definition
+            for s in synonyms:
+                sql_tuple = (s, byte_count, definition_length, 0)
+                global_dictionary[s] = sql_tuple
+        else:
+            if len(substitutions) > 0 :
+                global_substitutions += substitutions
+                
+        byte_count += definition_length
+
+
+    # close output files
+    if debug:
+        debug_file.close()
+    dictionary_file.close()
+    
+    
+    # process substitutions
+    for substitution in global_substitutions:
+        sub_from = substitution[0]
+        sub_to = substitution[1]
+
+        if sub_to in global_dictionary:
+            sql_tuple = global_dictionary[sub_to]
+            sql_tuple = ( sub_from, sql_tuple[1], sql_tuple[2], sql_tuple[3] )
+            global_dictionary[sub_from] = sql_tuple
+    
+    
+    # sort keys (needed by StarDict format)
+    keys = global_dictionary.keys()
+    keys.sort()
+    
+    # write index file
+    index_file = open(index_filename, "w")
+    for k in keys:
+        sql_tuple = global_dictionary[k]
+        index_file.write(sql_tuple[0])
+        index_file.write('\0')
+        index_file.write(struct.pack('>i', sql_tuple[1]))
+        index_file.write(struct.pack('>i', sql_tuple[2]))
+    index_file.close()
+
+
+    # write info file
+    info_file = open(info_filename, "w")
+    info_file.write("StarDict's dict ifo file\n")
+    info_file.write("version=2.4.8\n")
+    info_file.write("wordcount=" + str(len(keys)) + "\n")
+    info_file.write("idxfilesize=" + str(os.path.getsize(index_filename)) + "\n")
+    info_file.write("bookname=" + title + "\n")
+    info_file.write("date=" + year + "\n")
+    info_file.write("sametypesequence=m\n")
+    info_file.write("description=" + description + "<br/>" + license_string + "<br/>" + copyright_string + "\n")
+    # These fields are available and optional in .ifo StarDict files:
+    # info_file.write("author=" + XXX + "\n")
+    # info_file.write("email=" + XXX + "\n")
+    # info_file.write("website=" + XXX + "\n")
+    info_file.close()
+      
+### END write_to_Odyssey_format ###
 
 ### BEGIN read_command_line_parameters ###
 # read_command_line_parameters()
@@ -328,7 +462,7 @@ def read_command_line_parameters(argv):
         optlist, free = getopt.getopt(argv[1:], 'dhizf:p:t:',
             ['license=', 'copyright=', 'title=',
                 'description=', 'year=', 'parser=',
-                'sd', 'xml'])
+                'sd', 'xml', 'output-sd'])
     except getopt.GetoptError, err:
         print_error(str(err))
         usage()
@@ -346,27 +480,39 @@ def read_command_line_parameters(argv):
     else:
         print_error('No prefix parameter was supplied.')
 
+    input_format = 'sd'
+    if '--sd' in optdict:
+        input_format = 'sd'
+    if '--xml' in optdict:
+        input_format = 'xml'
+
+    output_format = 'odyssey'
+    if '--output-sd' in optdict:
+        output_format = 'sd'
+    
     language_from = ''
     if '-f' in optdict:
         language_from = optdict['-f']
     else:
-        print_error('No language_from parameter was supplied.')
+        if output_format == 'odyssey':
+            print_error('No language_from parameter was supplied.')
 
     language_to = ''
     if '-t' in optdict:
         language_to = optdict['-t']
     else:
-        print_error('No language_to parameter was supplied.')
+        if output_format == 'odyssey':
+            print_error('No language_to parameter was supplied.')
 
     if '--license' in optdict:
-        license = optdict['--license']
+        license_string = optdict['--license']
     else:
-        license = 'GNU GPL 3'
+        license_string = 'GNU GPL 3'
 
     if '--copyright' in optdict:
-        copyright = optdict['--copyright']
+        copyright_string = optdict['--copyright']
     else:
-        copyright = 'GNU GPL 3'
+        copyright_string = 'GNU GPL 3'
 
     if '--title' in optdict:
         title = optdict['--title']
@@ -401,15 +547,10 @@ def read_command_line_parameters(argv):
     if '-z' in optdict:
         create_zip = True
 
-    input_format = 'sd'
-    if '--sd' in optdict:
-        input_format = 'sd'
-    if '--xml' in optdict:
-        input_format = 'xml'
-
     return [ prefix, language_from, language_to,
-             license, copyright, title, description, year,
-             debug, ignore_case, parser_filename, create_zip, input_format ]
+             license_string, copyright_string, title, description, year,
+             debug, ignore_case, parser_filename, create_zip,
+             input_format, output_format ]
 
 ### END read_command_line_parameters ###
 
@@ -420,7 +561,6 @@ def read_command_line_parameters(argv):
 #
 # config = [ dictionary_filename, index_filename, language_from, language_to,
 #            license, copyright, title, description, year ]
-
 def print_config(config):
     print_info("Dictionary file: " + config[0])
     print_info("Index file:      " + config[1])
@@ -438,7 +578,6 @@ def print_config(config):
 ### BEGIN check_ifo_file ###
 # check_ifo_file(ifo_filename)
 # checks that ifo_filename exists and has the right format
-
 def check_ifo_file(ifo_filename):
     if not os.path.isfile(ifo_filename):
         return False, None
@@ -461,7 +600,6 @@ def check_ifo_file(ifo_filename):
 ### BEGIN check_idx_file ###
 # check_idx_file(idx_filename)
 # checks that idx_filename exists, uncompressing it if it was compressed
-
 def check_idx_file(idx_filename):
     uncompressed = idx_filename
     compressed = idx_filename + ".gz"
@@ -485,7 +623,6 @@ def check_idx_file(idx_filename):
 ### BEGIN check_dict_file ###
 # check_dict_file(dict_filename)
 # checks that dict_filename exists, uncompressing it if it was compressed
-
 def check_dict_file(dict_filename):
     uncompressed = dict_filename
     compressed = dict_filename + ".dz"
@@ -509,7 +646,6 @@ def check_dict_file(dict_filename):
 ### BEGIN check_xml_file ###
 # check_xml_file(xml_filename)
 # checks that xml_filename exists
-
 def check_xml_file(xml_filename):
 
     return os.path.isfile(xml_filename)
@@ -519,8 +655,7 @@ def check_xml_file(xml_filename):
 
 ### BEGIN check_parser ###
 # check_parser(parser_filename)
-# checks that parser_filename exists and is loadable
-
+# checks that parser_filename exists and can be loaded
 def check_parser(parser_filename):
     if parser_filename == None:
         return None
@@ -538,10 +673,21 @@ def check_parser(parser_filename):
 ### END check_parser ###
 
 
+### BEGIN check_existence ###
+# check_existence(filename)
+# checks whether filename exists
+def check_existence(filename):
+    if filename == None:
+        return False
+
+    return os.path.isfile(filename)
+
+### END check_existence ###
+
+
 ### BEGIN print_error ###
 # print_error(error)
 # print the given error, call usage, and exit
-
 def print_error(error):
     print "[ERROR] " + error + " Aborting."
     usage()
@@ -553,7 +699,6 @@ def print_error(error):
 ### BEGIN print_info ###
 # print_info(info)
 # print the given info string
-
 def print_info(info):
     print "[INFO] " + info
 
@@ -563,7 +708,6 @@ def print_info(info):
 ### BEGIN usage ###
 # usage()
 # print script usage
-
 def usage():
     print ''
     print '$ python penelope.py -p <prefix> -f <language_from> -t <language_to> [OPTIONS]'
@@ -580,6 +724,7 @@ def usage():
     print ' -z                     : create the .install zip file containing the dictionary and the index'
     print ' --sd                   : input dictionary in StarDict format (default)'
     print ' --xml                  : input dictionary in XML format (<entry><key>...</key><def>...</def></entry> ...)'
+    print ' --output-sd            : output dictionary in StarDict format'
     print ' --title <string>       : set the title string shown on the Odyssey screen to <string>'
     print ' --license <string>     : set the license string to <string>'
     print ' --copyright <string>   : set the copyright string to <string>'
@@ -597,6 +742,9 @@ def usage():
     print '$ python penelope.py --xml -p foo -f en -t en'
     print ' As above, but the input dictionary foo.xml is in XML format'
     print ''
+    print '$ python penelope.py --xml --output-sd -p foo -f en -t en'
+    print ' As above, but outputs in StarDict format'
+    print ''
     print '$ python penelope.py -p bar -f en -t it'
     print ' Create English-to-Italian dictionary en-it.dict and en-it.dict.idx from StarDict files bar.*'
     print ''
@@ -612,16 +760,16 @@ def usage():
 
 ### END usage ###
 
-### BEGIN main ###
 
+### BEGIN main ###
 def main():
 
     # read command line parameters
     [ prefix,
       language_from,
       language_to,
-      license,
-      copyright,
+      license_string,
+      copyright_string,
       title,
       description,
       year,
@@ -629,7 +777,8 @@ def main():
       ignore_case,
       parser_filename,
       create_zip,
-      input_format ] = read_command_line_parameters(sys.argv)
+      input_format,
+      output_format ] = read_command_line_parameters(sys.argv)
 
     type_sequence = 'unknown'
     if input_format == 'sd':
@@ -667,24 +816,45 @@ def main():
         print_error("Parser " + parser_filename + " not found or with no parse(data, type_sequence, ignore_case) function.")
 
 
-    # set default dictionary and index names
-    if language_from == language_to:
-        dictionary_filename = language_from + "." + prefix + ".dict"    
-    else:
-        dictionary_filename = language_from + "-" + language_to + ".dict" 
-    index_filename =  dictionary_filename + ".idx"
+    # set default dictionary, index and info filenames
+    if output_format == 'odyssey':
+        if language_from == language_to:
+            dictionary_filename = language_from + "." + prefix + ".dict"    
+        else:
+            dictionary_filename = language_from + "-" + language_to + ".dict" 
+        index_filename =  dictionary_filename + ".idx"
+        info_filename = ''
+        
+    if output_format == 'sd':
+        dictionary_filename = prefix + ".dict"
+        index_filename = prefix + ".idx"
+        info_filename = prefix + ".ifo"
+        compressed_dictionary_filename = dictionary_filename + ".dz"
+        
+        existing = False
+        existing = existing or check_existence(dictionary_filename)
+        existing = existing or check_existence(index_filename)
+        existing = existing or check_existence(info_filename)
+        existing = existing or check_existence(compressed_dictionary_filename)
+        
+        if existing:
+            dictionary_filename = "new." + prefix + ".dict"
+            index_filename = "new." + prefix + ".idx"
+            info_filename = "new." + prefix + ".ifo"
+            compressed_dictionary_filename = dictionary_filename + ".dz"
+        
     
-
     # set the config list
     config = [ dictionary_filename,
                index_filename,
                language_from,
                language_to,
-               license,
-               copyright,
+               license_string,
+               copyright_string,
                title,
                description,
-               year ]
+               year,
+               info_filename ]
 
 
     # let the user know whether debug mode is on
@@ -726,22 +896,31 @@ def main():
         print_info("Using the custom parser defined in " + parser_filename + " ...")
         parsed_data = parser.parse(data, type_sequence, ignore_case)
 
-
+    
     # write out to Odyssey format
-    print_info('Outputting dictionary and index to file...')
-    write_to_Odyssey_format(config, parsed_data, debug)
-    print_info("Files " + dictionary_filename + " and " + index_filename + " created successfully!")
-
-
-    # create zip .install file, if the user asked for it
-    if create_zip:
-        zip_filename = dictionary_filename + ".install"
-        print_info("Creating zip file " + zip_filename)
-        zip_file = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
-        zip_file.write(dictionary_filename)
-        zip_file.write(index_filename)
-        zip_file.close()
-        print_info("File " + zip_filename + " created successfully!")
+    if output_format == 'odyssey':    
+        print_info('Outputting in Odyssey format to file...')
+        write_to_Odyssey_format(config, parsed_data, debug)
+        print_info("Files " + dictionary_filename + " and " + index_filename + " created successfully!")
+    
+        # create zip .install file, if the user asked for it
+        if create_zip:
+            zip_filename = dictionary_filename + ".install"
+            print_info("Creating zip file " + zip_filename)
+            zip_file = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
+            zip_file.write(dictionary_filename)
+            zip_file.write(index_filename)
+            zip_file.close()
+            print_info("File " + zip_filename + " created successfully!")
+    
+    # write out to StarDict format
+    if output_format == 'sd':
+        print_info('Outputting in StarDict format to file...')  
+        write_to_StarDict_format(config, parsed_data, debug)
+        
+        # compress_StarDict_files(dictionary_filename, compressed_dictionary_filename, True)
+        
+        print_info("Files " + compressed_dictionary_filename + "," + index_filename + "," + info_filename + " created successfully!")
 
 ### END main ###
 
