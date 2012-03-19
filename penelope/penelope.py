@@ -4,7 +4,7 @@ __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012 Alberto Pettarin (pettarin gmail.com)'
 __version__     = 'v1.05'
-__date__        = '2012-03-13'
+__date__        = '2012-03-19'
 __description__ = 'Penelope allows you to format your dictionaries for the Bookeen Cybook Odyssey e-reader'
 
 
@@ -18,6 +18,7 @@ __description__ = 'Penelope allows you to format your dictionaries for the Booke
 #
 ### END changelog ###
 
+
 import getopt, gzip, imp, os, sqlite3, struct, subprocess, sys, zipfile
 
 
@@ -26,7 +27,7 @@ import getopt, gzip, imp, os, sqlite3, struct, subprocess, sys, zipfile
 # collate_function(string1, string2)
 # define the string comparison function for the index file
 def collate_function(string1, string2):
-    
+
     return cmp(string1.lower(), string2.lower())
 
 ### END collate_function ###
@@ -115,12 +116,12 @@ def read_from_xml_format(xml_input_filename, ignore_case):
         pos = xml_input.find('<def>', entry_pos)
         end_pos = xml_input.find('</def>', pos)
         definition = xml_input[pos + len('<def>'): end_pos].strip()
-       
+
         data += [ [ key, definition ] ]
-        
+
         entry_pos = xml_input.find('<entry>', entry_pos + 1)
-        
-    xml_input_file.close()      
+
+    xml_input_file.close()
 
     return data
 
@@ -278,7 +279,7 @@ def write_to_Odyssey_format(config, data, debug):
 
     # update index metadata
     header = "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\"  \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\" [<!ENTITY ns \"&#8226;\">]><html xml:lang=\"%s\" xmlns=\"http://www.w3.org/1999/xhtml\"><head><title></title></head><body>" % (language_from)
-    
+
     sql_cursor.execute('update T_DictInfo set F_xhtmlHeader=?', (header,))
     sql_cursor.execute('update T_DictInfo set F_LangFrom=?', (language_from,))
     sql_cursor.execute('update T_DictInfo set F_LangTo=?', (language_to,))
@@ -329,8 +330,8 @@ def write_to_StarDict_format(config, data, debug):
       description,
       year,
       info_filename ] = config
-    
-    
+
+
     # open debug file
     if debug:
         debug_file = open("debug." + dictionary_filename, "w")
@@ -343,13 +344,13 @@ def write_to_StarDict_format(config, data, debug):
 
     # sort input data
     # data.sort()
-    
+
     # open dictionary file
     dictionary_file = open(dictionary_filename, "w")
     byte_count = 0
-    
+
     for d in data:
-    
+
         # get data
         word = d[0]
         include = d[1]
@@ -362,19 +363,19 @@ def write_to_StarDict_format(config, data, debug):
             # save 1 byte
             definition = d[4]
         definition_length = len(definition)
-        
+
         if (include):
             # write definition to debug file
             if debug:
                 debug_file.write(definition)
-        
+
             # write definition to current chunk file
             dictionary_file.write(definition)
-          
+
             # insert word into global dictionary
             sql_tuple = (word, byte_count, definition_length, 0)
             global_dictionary[word] = sql_tuple
-        
+
             # insert synonyms into index file, pointing at current definition
             for s in synonyms:
                 sql_tuple = (s, byte_count, definition_length, 0)
@@ -382,16 +383,17 @@ def write_to_StarDict_format(config, data, debug):
         else:
             if len(substitutions) > 0 :
                 global_substitutions += substitutions
-                
+
         byte_count += definition_length
+
 
 
     # close output files
     if debug:
         debug_file.close()
     dictionary_file.close()
-    
-    
+
+
     # process substitutions
     for substitution in global_substitutions:
         sub_from = substitution[0]
@@ -401,12 +403,12 @@ def write_to_StarDict_format(config, data, debug):
             sql_tuple = global_dictionary[sub_to]
             sql_tuple = ( sub_from, sql_tuple[1], sql_tuple[2], sql_tuple[3] )
             global_dictionary[sub_from] = sql_tuple
-    
-    
+
+
     # sort keys (needed by StarDict format)
     keys = global_dictionary.keys()
     keys.sort()
-    
+
     # write index file
     index_file = open(index_filename, "w")
     for k in keys:
@@ -433,7 +435,7 @@ def write_to_StarDict_format(config, data, debug):
     # info_file.write("email=" + XXX + "\n")
     # info_file.write("website=" + XXX + "\n")
     info_file.close()
-      
+
 ### END write_to_Odyssey_format ###
 
 
@@ -442,7 +444,7 @@ def write_to_StarDict_format(config, data, debug):
 # compress dictionary_filename and index_filename into zip_filename
 #
 def compress_install_file(dictionary_filename, index_filename, zip_filename):
-    
+
     print_info("Creating zip file " + zip_filename + "...")
     zip_file = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
     zip_file.write(dictionary_filename)
@@ -468,17 +470,17 @@ def compress_StarDict_dictionary(dictionary_filename, compressed_dictionary_file
     # compress the dictionary file with dictzip
     print_info("Creating compressed dictionary file " + compressed_dictionary_filename + "...") 
     return_code = subprocess.call(["dictzip", "-k", dictionary_filename])
-    
+
     # check whether the compression was successful
     if return_code == 0:
         print_info("File " + compressed_dictionary_filename + " created successfully!")
-        
+
         # delete the uncompressed dictionary
         if delete_uncompressed:
             os.remove(dictionary_filename)
     else:
         print_info("File " + compressed_dictionary_filename + " cannot be created. Check that dictzip is installed in your system.")
-    
+
     return return_code
 
 ### END compress_StarDict_dictionary ###
@@ -539,7 +541,7 @@ def read_command_line_parameters(argv):
     output_format = 'odyssey'
     if '--output-sd' in optdict:
         output_format = 'sd'
-    
+
     language_from = ''
     if '-f' in optdict:
         language_from = optdict['-f']
@@ -656,7 +658,7 @@ def check_idx_file(idx_filename):
 
     if os.path.isfile(uncompressed):
         return True
-    
+
     if os.path.isfile(compressed):
         uncompressed_idx_file = open(uncompressed, 'w')
         compressed_idx_file = gzip.open(compressed, 'r')
@@ -679,7 +681,7 @@ def check_dict_file(dict_filename):
 
     if os.path.isfile(uncompressed):
         return True
-    
+
     if os.path.isfile(compressed):
         uncompressed_idx_file = open(uncompressed, 'w')
         compressed_idx_file = gzip.open(compressed, 'r')
@@ -736,12 +738,15 @@ def check_existence(filename):
 
 
 ### BEGIN print_error ###
-# print_error(error)
+# print_error(error, displayusage=True)
 # print the given error, call usage, and exit
-def print_error(error):
-    print "[ERROR] " + error + " Aborting."
-    usage()
-    exit(1)
+# optional displayusage to skip usage
+
+def print_error(error, displayusage = True):
+    sys.stderr.write ("[ERROR] " + error + " Aborting.\n")
+    if displayusage :
+        usage()
+    sys.exit(1)
 
 ### END print_error ###
 
@@ -869,31 +874,31 @@ def main():
     # set default dictionary, index and info filenames
     if output_format == 'odyssey':
         if language_from == language_to:
-            dictionary_filename = language_from + "." + prefix + ".dict"    
+            dictionary_filename = language_from + "." + prefix + ".dict"
         else:
-            dictionary_filename = language_from + "-" + language_to + ".dict" 
+            dictionary_filename = language_from + "-" + language_to + ".dict"
         index_filename =  dictionary_filename + ".idx"
         info_filename = ''
-        
+
     if output_format == 'sd':
         dictionary_filename = prefix + ".dict"
         index_filename = prefix + ".idx"
         info_filename = prefix + ".ifo"
         compressed_dictionary_filename = dictionary_filename + ".dz"
-        
+
         existing = False
         existing = existing or check_existence(dictionary_filename)
         existing = existing or check_existence(index_filename)
         existing = existing or check_existence(info_filename)
         existing = existing or check_existence(compressed_dictionary_filename)
-        
+
         if existing:
             dictionary_filename = "new." + prefix + ".dict"
             index_filename = "new." + prefix + ".idx"
             info_filename = "new." + prefix + ".ifo"
             compressed_dictionary_filename = dictionary_filename + ".dz"
-        
-    
+
+
     # set the config list
     config = [ dictionary_filename,
                index_filename,
@@ -946,25 +951,25 @@ def main():
         print_info("Using the custom parser defined in " + parser_filename + " ...")
         parsed_data = parser.parse(data, type_sequence, ignore_case)
 
-    
+
     # write out to Odyssey format
-    if output_format == 'odyssey':    
+    if output_format == 'odyssey':
         print_info('Outputting in Odyssey format to file...')
         write_to_Odyssey_format(config, parsed_data, debug)
         print_info("Files " + dictionary_filename + " and " + index_filename + " created successfully!")
-    
+
         # create zip .install file, if the user asked for it
         if create_zip:
             zip_filename = dictionary_filename + ".install"
             compress_install_file(dictionary_filename, index_filename, zip_filename)
-    
+
     # write out to StarDict format
     if output_format == 'sd':
-        print_info('Outputting in StarDict format to file...')  
+        print_info('Outputting in StarDict format to file...')
         write_to_StarDict_format(config, parsed_data, debug)
         delete_uncompressed = not debug
         return_code = compress_StarDict_dictionary(dictionary_filename, compressed_dictionary_filename, delete_uncompressed)
-        
+
         if return_code == 0:
             print_info("Files " + compressed_dictionary_filename + ", " + index_filename + ", and " + info_filename + " created successfully!")
         else:
