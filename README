@@ -3,16 +3,15 @@ Penelope
 Penelope is a utility that allows you to format a dictionary for
 the Bookeen Cybook Odyssey e-reader.
 
-With the current version (v. 1.04, 2012-03-07) you can convert
+With the current version (v. 1.06, 2012-11-29) you can convert
 a Stardict or XML dictionary into the Odyssey format,
 and define your own parser for each word/definition.
 
-Future versions will include support for more advanced XML input parsing
-and for merging multiple input dictionaries into a single one.
+Future versions will include support for merging multiple input dictionaries into a single one, and for generating an EPUB file to "fake" a search function, currently not implemented in the Bookeen Cybook Odyssey eReader.
 
 Please have a look at this web page for details:
-http://www.dei.unipd.it/~pettarin/penelope.html
+http://www.albertopettarin.it/penelope.html
 
 If you want to contribute some code or you have suggestions,
 please let me know by sending an email to pettarin AT gmail ...
-containing the word "Penelope" in the subject. Thanks! 
+containing the word "Penelope" in the subject. Thanks!
