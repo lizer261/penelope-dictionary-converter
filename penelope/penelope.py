@@ -3,9 +3,9 @@
 __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012 Alberto Pettarin (pettarin gmail.com)'
-__version__     = 'v1.06'
-__date__        = '2012-11-29'
-__description__ = 'Penelope allows you to format your dictionaries for the Bookeen Cybook Odyssey e-reader'
+__version__     = 'v1.07'
+__date__        = '2012-12-08'
+__description__ = 'Penelope converts a Stardict or XML dictionary into Bookeen Cybook Odyssey or Kobo or Stardict formats'
 
 
 ### BEGIN changelog ###
@@ -18,8 +18,11 @@ __description__ = 'Penelope allows you to format your dictionaries for the Booke
 #
 ### END changelog ###
 
-
 import getopt, gzip, imp, os, sqlite3, struct, subprocess, sys, zipfile
+
+### Path to working MARISA executables ###
+MARISA_BUILD_PATH="/home/alberto/.bin/marisa-0.2.0/tools/marisa-build"
+### Path to working MARISA executables ###
 
 
 
@@ -436,7 +439,176 @@ def write_to_StarDict_format(config, data, debug):
     # info_file.write("website=" + XXX + "\n")
     info_file.close()
 
-### END write_to_Odyssey_format ###
+### END write_to_StarDict_format ###
+
+
+
+### BEGIN write_to_Kobo_format ###
+# write_to_Kobo_format(config, data, debug)
+# write data to the Kobo format, using the config settings
+#
+# config = [ dictionary_filename, index_filename, language_from, language_to,
+#            license_string, copyright_string, title, description, year, info_filename ]
+#
+# data = [ word, include, synonyms, substitutions, definition ]
+#
+# where:
+#        word is the sorting key
+#        include is a boolean saying whether the word should be included
+#        synonyms is a list of alternative strings for word
+#        substitutions is a list of pairs [ word_to_replace, replacement ]
+#        definition is the definition of word
+def write_to_Kobo_format(config, data, debug):
+
+    # read config parameters
+    [ dictionary_filename,
+      index_filename,
+      language_from,
+      language_to,
+      license_string,
+      copyright_string,
+      title,
+      description,
+      year,
+      info_filename ] = config
+
+
+    # open debug file
+    if debug:
+        debug_file = open("debug." + dictionary_filename, "w")
+
+    # keep a dictionary of words, with their sql_tuples
+    global_dictionary = dict()
+
+    # keep a global list of substitutions
+    global_substitutions = []
+
+    # sort input data
+    # data.sort()
+
+    # load dictionary
+    byte_count = 0
+
+    for d in data:
+
+        # get data
+        word = d[0]
+        include = d[1]
+        synonyms = d[2]
+        substitutions = d[3]
+        if debug:
+            # augment readability of c_* files
+            definition = d[4] + "\n"
+        else:
+            # save 1 byte
+            definition = d[4]
+        definition_length = len(definition)
+
+        if (include):
+            # append word into log file
+            if debug:
+                debug_file.write(word + "\n")
+
+            # insert word into global dictionary
+            sql_tuple = (word, byte_count, definition_length, 0, definition)
+            global_dictionary[word] = sql_tuple
+
+            # insert synonyms into index file, pointing at current definition
+            for s in synonyms:
+                sql_tuple = (s, byte_count, definition_length, 0, definition)
+                global_dictionary[s] = sql_tuple
+        else:
+            if len(substitutions) > 0 :
+                global_substitutions += substitutions
+
+        byte_count += definition_length
+
+    # close output files
+    if debug:
+        debug_file.close()
+
+    # process substitutions
+    for substitution in global_substitutions:
+        sub_from = substitution[0]
+        sub_to = substitution[1]
+
+        if sub_to in global_dictionary:
+            sql_tuple = global_dictionary[sub_to]
+            sql_tuple = ( sub_from, sql_tuple[1], sql_tuple[2], sql_tuple[3], sql_tuple[4] )
+            global_dictionary[sub_from] = sql_tuple
+
+
+    # sort keys (needed by StarDict format)
+    keys = global_dictionary.keys()
+    keys.sort()
+
+    # store file names of the HTML files
+    # to be included in the ZIP file
+    fileNames = []
+    fileIDs = []
+
+    # compute dictionary with (XX, key) entries
+    fileToKey = dict()
+    for k in keys:
+        pref = "11"
+        if len(k) >= 2 and (k[0].lower().islower()) and (k[1].lower().islower()):
+            pref = k[0:2].lower()
+        if pref in fileToKey:
+            fileToKey[pref] += [ k ]
+        else:
+            fileToKey[pref] = [ k ] 
+        if pref not in fileIDs:
+            fileIDs += [ pref ]
+            fileNames += [ pref + ".html" ]
+    
+    # output definitions
+    for p in fileIDs:
+        f = open(p + ".html", 'w')
+        f.write("<?xml version=\"1.0\" encoding=\"utf-8\"?><html>")
+        for k in fileToKey[p]:
+            word = k
+            definition = global_dictionary[k][4]
+            f.write("<w><a name=\"%s\"/><b>%s</b><br/>%s</w>" % (word, word, definition))
+        f.write("</html>")
+        f.close()
+
+        # compress with gzip
+        f = open(p + ".html", 'rb')
+        f_out = gzip.open(p + ".html.gz", 'wb')
+        f_out.writelines(f)
+        f_out.close()
+        f.close()
+
+        # remove .gz
+        os.rename(p + ".html.gz", p + ".html")
+    
+    # accumulate index file
+    index_file = ""
+    for k in keys:
+        sql_tuple = global_dictionary[k]
+        index_file += (sql_tuple[0] + "\n")
+
+    # compress index with MARISA
+    print_info("Creating compressed index file " + index_filename + "...") 
+    p = subprocess.Popen([MARISA_BUILD_PATH, "-o", index_filename], stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout_data = p.communicate(input=index_file)[0]
+    fileNames += [ index_filename ]
+
+    # create ZIP file
+    zip_filename = dictionary_filename + ".zip"
+    print_info("Creating zip file " + zip_filename + "...")
+    zip_file = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
+    for fileName in fileNames:
+        zip_file.write(fileName)
+    zip_file.close()
+    print_info("File " + zip_filename + " created successfully!")
+
+    # clean up
+    if not debug:
+        for fileName in fileNames:
+            os.remove(fileName)
+
+### END write_to_Kobo_format ###
 
 
 ### BEGIN compress_install_file ###
@@ -514,7 +686,7 @@ def read_command_line_parameters(argv):
         optlist, free = getopt.getopt(argv[1:], 'dhizf:p:t:',
             ['license=', 'copyright=', 'title=',
                 'description=', 'year=', 'parser=',
-                'sd', 'xml', 'output-sd'])
+                'sd', 'xml', 'output-sd', 'output-kobo'])
     except getopt.GetoptError, err:
         print_error(str(err))
         usage()
@@ -541,19 +713,21 @@ def read_command_line_parameters(argv):
     output_format = 'odyssey'
     if '--output-sd' in optdict:
         output_format = 'sd'
+    if '--output-kobo' in optdict:
+        output_format = 'kobo'
 
     language_from = ''
     if '-f' in optdict:
         language_from = optdict['-f']
     else:
-        if output_format == 'odyssey':
+        if output_format == 'odyssey' or output_format == 'kobo':
             print_error('No language_from parameter was supplied.')
 
     language_to = ''
     if '-t' in optdict:
         language_to = optdict['-t']
     else:
-        if output_format == 'odyssey':
+        if output_format == 'odyssey' or output_format == 'kobo':
             print_error('No language_to parameter was supplied.')
 
     if '--license' in optdict:
@@ -780,6 +954,7 @@ def usage():
     print ' --sd                   : input dictionary in StarDict format (default)'
     print ' --xml                  : input dictionary in XML format (<entry><key>...</key><def>...</def></entry> ...)'
     print ' --output-sd            : output dictionary in StarDict format'
+    print ' --output-kobo          : output dictionary in Kobo format'
     print ' --title <string>       : set the title string shown on the Odyssey screen to <string>'
     print ' --license <string>     : set the license string to <string>'
     print ' --copyright <string>   : set the copyright string to <string>'
@@ -802,6 +977,9 @@ def usage():
     print ''
     print '$ python penelope.py -p bar -f en -t it'
     print ' Create English-to-Italian dictionary en-it.dict and en-it.dict.idx from StarDict files bar.*'
+    print ''
+    print '$ python penelope.py --output-kobo -p bar -f en -t it'
+    print ' As above, but outputs in Kobo format'
     print ''
     print '$ python penelope.py -p bar -f en -t it --title "My EN->IT dictionary" --year 2012 --license "CC-BY-NC-SA 3.0"'
     print ' As above but also set title, year and license metadata'
@@ -898,6 +1076,27 @@ def main():
             info_filename = "new." + prefix + ".ifo"
             compressed_dictionary_filename = dictionary_filename + ".dz"
 
+    if output_format == 'kobo':
+        if language_from == language_to:
+            if language_from == "en":
+                # en-en dictionary is simply "dicthtml.zip"
+                dictionary_filename = "dicthtml"
+            else:
+                # it-it dictionary is "dicthtml-it.zip"
+                dictionary_filename = "dicthtml-" + language_from
+        else:
+            # en-it dictionary is "dicthtml-en-it.zip"
+            dictionary_filename = "dicthtml-" + language_from + "-" + language_to
+        compressed_dictionary_filename = dictionary_filename + ".zip"
+        index_filename = "words"
+        info_filename = ''
+
+        existing = False
+        existing = existing or check_existence(dictionary_filename)
+        existing = existing or check_existence(compressed_dictionary_filename)
+        if existing:
+            dictionary_filename = "new." + dictionary_filename
+            compressed_dictionary_filename = "new." + compressed_dictionary_filename
 
     # set the config list
     config = [ dictionary_filename,
@@ -974,6 +1173,13 @@ def main():
             print_info("Files " + compressed_dictionary_filename + ", " + index_filename + ", and " + info_filename + " created successfully!")
         else:
             print_info("Files " + dictionary_filename + ", " + index_filename + ", and " + info_filename + " created successfully!")
+
+    # write out to Kobo format
+    if output_format == 'kobo':
+        print_info('Outputting in Kobo format to file...')
+        write_to_Kobo_format(config, parsed_data, debug)
+        print_info("File " + compressed_dictionary_filename + " created successfully!")
+
 
 ### END main ###
 
