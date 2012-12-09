@@ -1,14 +1,11 @@
 Penelope
 
 Penelope is a utility that allows you to format a dictionary for
-the Bookeen Cybook Odyssey e-reader.
+the Bookeen Cybook Odyssey or for Kobo eReaders.
 
-With the current version (v. 1.07, 2012-12-08) you can convert
-a Stardict or XML dictionary into the Odyssey format,
+With the current version (v. 1.8, 2012-12-09) you can convert
+a Stardict or XML dictionary into the Odyssey or Kobo or Stardict formats,
 and define your own parser for each word/definition.
-
-UPDATE 2012-12-08: now Penelope lets you output
-to Stardict or Kobo format.
 
 Future versions will include support for merging
 multiple input dictionaries into a single one,
@@ -24,7 +21,7 @@ If you want to contribute some code or you have suggestions,
 please let me know by sending an email to pettarin AT gmail ...
 containing the word "Penelope" in the subject. Thanks!
 
-*IMPORTANT NOTE (2012-11-28):*
+*IMPORTANT NOTE (2012-12-09):*
 the current code requires Python 2.6 or Python 2.7.
 It does *not* run under Python 3.
 If you download the current code and modify it
