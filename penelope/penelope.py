@@ -3,13 +3,16 @@
 __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012 Alberto Pettarin (pettarin gmail.com)'
-__version__     = 'v1.07'
-__date__        = '2012-12-08'
-__description__ = 'Penelope converts a Stardict or XML dictionary into Bookeen Cybook Odyssey or Kobo or Stardict formats'
+__version__     = 'v1.08'
+__date__        = '2012-12-09'
+__description__ = 'Penelope converts a Stardict or XML-like dictionary into Cybook Odyssey, Kobo, and Stardict formats'
 
 
 ### BEGIN changelog ###
 #
+# 1.08 Better management of Kobo output
+# 1.07 Added Kobo output
+# 1.06 ???
 # 1.05 Added StarDict output
 # 1.04 Code refactoring before uploading to Google Code
 # 1.03 Fixed a bug when using --xml and --parser
@@ -550,9 +553,7 @@ def write_to_Kobo_format(config, data, debug):
     # compute dictionary with (XX, key) entries
     fileToKey = dict()
     for k in keys:
-        pref = "11"
-        if len(k) >= 2 and (k[0].lower().islower()) and (k[1].lower().islower()):
-            pref = k[0:2].lower()
+        pref = compute_prefix(k)
         if pref in fileToKey:
             fileToKey[pref] += [ k ]
         else:
@@ -568,7 +569,7 @@ def write_to_Kobo_format(config, data, debug):
         for k in fileToKey[p]:
             word = k
             definition = global_dictionary[k][4]
-            f.write("<w><a name=\"%s\"/><b>%s</b><br/>%s</w>" % (word, word, definition))
+            f.write("<w><a name=\"%s\"/><div><b>%s</b><br/>%s</div></w>" % (word, word, definition))
         f.write("</html>")
         f.close()
 
@@ -611,6 +612,47 @@ def write_to_Kobo_format(config, data, debug):
 ### END write_to_Kobo_format ###
 
 
+### BEGIN compute_prefix ###
+# compute_prefix(keyword)
+# compute the correct Kobo file name where keyword should be stored
+#
+def compute_prefix(keyword):
+    pref = "11"
+    keyword = keyword.decode('utf-8').lower()
+    
+    if len(keyword) == 0:
+        return pref
+
+    if len(keyword) == 1:
+        keyword += "a"
+    
+    # here keyword has length at least 2
+    if is_char_allowed(keyword[0]) and is_char_allowed(keyword[1]):
+        pref = keyword[0:2]
+
+    return pref
+
+### END compute_prefix ###
+
+
+### BEGIN is_char_allowed ###
+# is_char_allowed(ch)
+# returns true if ch is allowed in Kobo format, false otherwise
+def is_char_allowed(ch):
+    # all non-ascii are ok
+    if ord(ch) > 127:
+        return True
+
+    # all ASCII letters are ok
+    if ord(ch) >= 97 and ord(ch) <= 122:
+        return True
+    
+    # everything else is not ok 
+    return False
+
+### END is_char_allowed ###
+
+
 ### BEGIN compress_install_file ###
 # compress_install_file(dictionary_filename, index_filename, zip_filename)
 # compress dictionary_filename and index_filename into zip_filename
@@ -623,7 +665,6 @@ def compress_install_file(dictionary_filename, index_filename, zip_filename):
     zip_file.write(index_filename)
     zip_file.close()
     print_info("File " + zip_filename + " created successfully!")
-
 
 ### END compress_StarDict_dictionary ###
 
@@ -752,7 +793,6 @@ def read_command_line_parameters(argv):
 
     if '--year' in optdict:
         year = optdict['--year']
-        print year
     else:
         year = '2012'
 
@@ -941,12 +981,12 @@ def usage():
     print ''
     print '$ python penelope.py -p <prefix> -f <language_from> -t <language_to> [OPTIONS]'
     print ''
-    print 'Required arguments include:'
+    print 'Required arguments:'
     print ' -p <prefix>            : name of the dictionary to be converted (prefix.ifo, prefix.idx[.gz], prefix.dict[.dz])'
     print ' -f <language_from>     : ISO 631-2 code language_from of the dictionary to be converted'
     print ' -t <language_to>       : ISO 631-2 code language_to of the dictionary to be converted'
     print ''
-    print 'Optional arguments include:'
+    print 'Optional arguments:'
     print ' -d                     : enable debug mode and do not delete temporary files'
     print ' -h                     : print this usage message and exit'
     print ' -i                     : ignore word case while building the dictionary index'
@@ -1186,7 +1226,8 @@ def main():
 
 
 if __name__ == '__main__':
+    reload(sys)
+    sys.setdefaultencoding("utf-8")
     main()
-
 
 
