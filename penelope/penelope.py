@@ -3,13 +3,14 @@
 __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012 Alberto Pettarin (pettarin gmail.com)'
-__version__     = 'v1.08'
-__date__        = '2012-12-09'
+__version__     = 'v1.09'
+__date__        = '2012-12-21'
 __description__ = 'Penelope converts a Stardict or XML-like dictionary into Cybook Odyssey, Kobo, and Stardict formats'
 
 
 ### BEGIN changelog ###
 #
+# 1.09 Added "b" to open() calls and added unlink(): now penelope works under Windows with Python 2.7.3
 # 1.08 Better management of Kobo output
 # 1.07 Added Kobo output
 # 1.06 ???
@@ -51,8 +52,8 @@ def read_from_stardict_format(idx_input_filename,
     data = []
 
     # open files
-    idx_input_file = open(idx_input_filename, 'rb')
-    dict_input_file = open(dict_input_filename, 'rb')
+    idx_input_file = open(idx_input_filename, "rb")
+    dict_input_file = open(dict_input_filename, "rb")
 
     # read the whole dictionary in memory
     dict_input = dict_input_file.read()
@@ -103,7 +104,7 @@ def read_from_xml_format(xml_input_filename, ignore_case):
     data = []
 
     # open file
-    xml_input_file = open(xml_input_filename, 'rb')
+    xml_input_file = open(xml_input_filename, "rb")
 
     # read the whole dictionary in memory
     xml_input = xml_input_file.read()
@@ -169,8 +170,8 @@ def write_to_Odyssey_format(config, data, debug):
       info_filename ] = config
 
     # copy empty.idx into index_filename
-    input_file = open('empty.idx', 'r')
-    output_file = open(index_filename, 'w')
+    input_file = open('empty.idx', "rb")
+    output_file = open(index_filename, "wb")
     output_file.write(input_file.read())
     input_file.close()
     output_file.close()
@@ -189,13 +190,13 @@ def write_to_Odyssey_format(config, data, debug):
 
     # open debug file
     if debug:
-        debug_file = open("debug." + dictionary_filename, "w")
+        debug_file = open("debug." + dictionary_filename, "wb")
 
     # split data in chunks of size between MAX_CHUNK_SIZE and 2*MAX_CHUNK_SIZE bytes
     byte_count = 0
     current_chunk = 1
     current_chunk_filename = CHUNK_STRING + str(current_chunk)
-    current_chunk_file = open(current_chunk_filename, "w")
+    current_chunk_file = open(current_chunk_filename, "wb")
     chunk_filenames = [ current_chunk_filename ]
 
     # keep a dictionary of words, with their sql_tuples
@@ -250,7 +251,7 @@ def write_to_Odyssey_format(config, data, debug):
                 current_chunk_file.close()
                 current_chunk += 1
                 current_chunk_filename = CHUNK_STRING + str(current_chunk)
-                current_chunk_file = open(current_chunk_filename, "w")
+                current_chunk_file = open(current_chunk_filename, "wb")
                 chunk_filenames += [ current_chunk_filename ]
                 byte_count = 0
         else:
@@ -263,7 +264,7 @@ def write_to_Odyssey_format(config, data, debug):
     current_chunk_file.close()
 
     # zip chunk files into dictionary_filename
-    dictionary_zip_file = zipfile.ZipFile(dictionary_filename, 'w', zipfile.ZIP_DEFLATED)
+    dictionary_zip_file = zipfile.ZipFile(dictionary_filename, "w", zipfile.ZIP_DEFLATED)
     for current_chunk_filename in chunk_filenames:
         dictionary_zip_file.write(current_chunk_filename)
     dictionary_zip_file.close()
@@ -340,7 +341,7 @@ def write_to_StarDict_format(config, data, debug):
 
     # open debug file
     if debug:
-        debug_file = open("debug." + dictionary_filename, "w")
+        debug_file = open("debug." + dictionary_filename, "wb")
 
     # keep a dictionary of words, with their sql_tuples
     global_dictionary = dict()
@@ -352,7 +353,7 @@ def write_to_StarDict_format(config, data, debug):
     # data.sort()
 
     # open dictionary file
-    dictionary_file = open(dictionary_filename, "w")
+    dictionary_file = open(dictionary_filename, "wb")
     byte_count = 0
 
     for d in data:
@@ -416,7 +417,7 @@ def write_to_StarDict_format(config, data, debug):
     keys.sort()
 
     # write index file
-    index_file = open(index_filename, "w")
+    index_file = open(index_filename, "wb")
     for k in keys:
         sql_tuple = global_dictionary[k]
         index_file.write(sql_tuple[0])
@@ -427,7 +428,7 @@ def write_to_StarDict_format(config, data, debug):
 
 
     # write info file
-    info_file = open(info_filename, "w")
+    info_file = open(info_filename, "wb")
     info_file.write("StarDict's dict ifo file\n")
     info_file.write("version=2.4.2\n")
     info_file.write("wordcount=" + str(len(keys)) + "\n")
@@ -478,7 +479,7 @@ def write_to_Kobo_format(config, data, debug):
 
     # open debug file
     if debug:
-        debug_file = open("debug." + dictionary_filename, "w")
+        debug_file = open("debug." + dictionary_filename, "wb")
 
     # keep a dictionary of words, with their sql_tuples
     global_dictionary = dict()
@@ -564,7 +565,7 @@ def write_to_Kobo_format(config, data, debug):
     
     # output definitions
     for p in fileIDs:
-        f = open(p + ".html", 'w')
+        f = open(p + ".html", "wb")
         f.write("<?xml version=\"1.0\" encoding=\"utf-8\"?><html>")
         for k in fileToKey[p]:
             word = k
@@ -574,13 +575,14 @@ def write_to_Kobo_format(config, data, debug):
         f.close()
 
         # compress with gzip
-        f = open(p + ".html", 'rb')
-        f_out = gzip.open(p + ".html.gz", 'wb')
+        f = open(p + ".html", "rb")
+        f_out = gzip.open(p + ".html.gz", "wb")
         f_out.writelines(f)
         f_out.close()
         f.close()
 
         # remove .gz
+        os.unlink(p + ".html")
         os.rename(p + ".html.gz", p + ".html")
     
     # accumulate index file
@@ -598,7 +600,7 @@ def write_to_Kobo_format(config, data, debug):
     # create ZIP file
     zip_filename = dictionary_filename + ".zip"
     print_info("Creating zip file " + zip_filename + "...")
-    zip_file = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
+    zip_file = zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED)
     for fileName in fileNames:
         zip_file.write(fileName)
     zip_file.close()
@@ -660,7 +662,7 @@ def is_char_allowed(ch):
 def compress_install_file(dictionary_filename, index_filename, zip_filename):
 
     print_info("Creating zip file " + zip_filename + "...")
-    zip_file = zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED)
+    zip_file = zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED)
     zip_file.write(dictionary_filename)
     zip_file.write(index_filename)
     zip_file.close()
@@ -849,13 +851,13 @@ def check_ifo_file(ifo_filename):
         return False, None
 
     type_sequence = ''
-    ifo_file = open(ifo_filename, 'r')
+    ifo_file = open(ifo_filename, "rb")
     for line in ifo_file:
         if line.strip().find('sametypesequence') > -1:
             type_sequence = line.strip().split('=')[1]
     ifo_file.close()
 
-    if type_sequence in ['m', 'l', 'x', 'w']:
+    if type_sequence in ['m', 'l', 'x', "wb"]:
         return True, type_sequence
     else:
         return False, type_sequence
@@ -874,8 +876,8 @@ def check_idx_file(idx_filename):
         return True
 
     if os.path.isfile(compressed):
-        uncompressed_idx_file = open(uncompressed, 'w')
-        compressed_idx_file = gzip.open(compressed, 'r')
+        uncompressed_idx_file = open(uncompressed, "wb")
+        compressed_idx_file = gzip.open(compressed, "rb")
         uncompressed_idx_file.write(compressed_idx_file.read())
         compressed_idx_file.close()
         uncompressed_idx_file.close()
@@ -897,8 +899,8 @@ def check_dict_file(dict_filename):
         return True
 
     if os.path.isfile(compressed):
-        uncompressed_idx_file = open(uncompressed, 'w')
-        compressed_idx_file = gzip.open(compressed, 'r')
+        uncompressed_idx_file = open(uncompressed, "wb")
+        compressed_idx_file = gzip.open(compressed, "rb")
         uncompressed_idx_file.write(compressed_idx_file.read())
         compressed_idx_file.close()
         uncompressed_idx_file.close()
