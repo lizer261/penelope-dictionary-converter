@@ -3,13 +3,14 @@
 __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012 Alberto Pettarin (pettarin gmail.com)'
-__version__     = 'v1.10'
-__date__        = '2012-12-21'
+__version__     = 'v1.11'
+__date__        = '2012-12-22'
 __description__ = 'Penelope converts a Stardict or XML-like dictionary into Cybook Odyssey, Kobo, and Stardict formats'
 
 
 ### BEGIN changelog ###
 #
+# 1.11 Support for non-ASCII characters in filenames for Kobo output
 # 1.10 penelope3.py works under Linux with Python 3.2.3
 # 1.09 Added "b" to open() calls and added unlink(): now penelope works under Windows with Python 2.7.3
 # 1.08 Better management of Kobo output
@@ -25,9 +26,21 @@ __description__ = 'Penelope converts a Stardict or XML-like dictionary into Cybo
 
 import getopt, gzip, imp, os, sqlite3, struct, subprocess, sys, zipfile
 
+
 ### Path to working MARISA executables ###
+#
+# Please modify according to your OS and installation path.
+# Remember that each of the following variables
+# points directly to the respective executable,
+# not to the directory containing it.
+#
+# Examples:
+# MARISA_BUILD_PATH="/home/alberto/.bin/marisa-0.2.0/tools/marisa-build"
+# MARISA_BUILD_PATH="C:\kobo\marisa\marisa-build.exe"
+#
 MARISA_BUILD_PATH="/home/alberto/.bin/marisa-0.2.0/tools/marisa-build"
 ### Path to working MARISA executables ###
+
 
 
 
@@ -94,7 +107,6 @@ def read_from_stardict_format(idx_input_filename,
     dict_input_file.close()
 
     return data
-
 ### END read_from_stardict_format ###
 
 
@@ -135,7 +147,6 @@ def read_from_xml_format(xml_input_filename, ignore_case):
     xml_input_file.close()
 
     return data
-
 ### END read_from_xml_format ###
 
 
@@ -225,8 +236,6 @@ def write_to_Odyssey_format(config, data, debug):
         else:
             # save 1 byte
             definition = d[4]
-        # TODO ALPE here is the problem?
-        #definition_length = len(definition)
         definition_length = len(bytearray(definition, "utf-8"))
 
         if (include):
@@ -311,7 +320,6 @@ def write_to_Odyssey_format(config, data, debug):
     sql_cursor.execute('VACUUM')
     sql_cursor.close()
     sql_connection.close()
-
 ### END write_to_Odyssey_format ###
 
 
@@ -447,7 +455,6 @@ def write_to_StarDict_format(config, data, debug):
     # info_file.write("email=" + XXX + "\n")
     # info_file.write("website=" + XXX + "\n")
     info_file.close()
-
 ### END write_to_StarDict_format ###
 
 
@@ -615,7 +622,6 @@ def write_to_Kobo_format(config, data, debug):
     if not debug:
         for fileName in fileNames:
             os.remove(fileName)
-
 ### END write_to_Kobo_format ###
 
 
@@ -628,7 +634,7 @@ def compute_prefix(keyword):
     keyword = keyword.lower()
     
     if len(keyword) == 0:
-        return pref
+        return str(pref)
 
     if len(keyword) == 1:
         keyword += "a"
@@ -637,8 +643,7 @@ def compute_prefix(keyword):
     if is_char_allowed(keyword[0]) and is_char_allowed(keyword[1]):
         pref = keyword[0:2]
 
-    return pref
-
+    return str(pref)
 ### END compute_prefix ###
 
 
@@ -656,7 +661,6 @@ def is_char_allowed(ch):
     
     # everything else is not ok 
     return False
-
 ### END is_char_allowed ###
 
 
@@ -672,7 +676,6 @@ def compress_install_file(dictionary_filename, index_filename, zip_filename):
     zip_file.write(index_filename)
     zip_file.close()
     print_info("File " + zip_filename + " created successfully!")
-
 ### END compress_StarDict_dictionary ###
 
 
@@ -702,7 +705,6 @@ def compress_StarDict_dictionary(dictionary_filename, compressed_dictionary_file
         print_info("File " + compressed_dictionary_filename + " cannot be created. Check that dictzip is installed in your system.")
 
     return return_code
-
 ### END compress_StarDict_dictionary ###
 
 
@@ -728,6 +730,7 @@ def compress_StarDict_dictionary(dictionary_filename, compressed_dictionary_file
 # --sd : input format is StarDict (default)
 # --xml : input format is XML
 # --output-sd : output format is StarDict
+# --output-kobo : output format is Kobo
 def read_command_line_parameters(argv):
 
     try:
@@ -824,7 +827,6 @@ def read_command_line_parameters(argv):
              license_string, copyright_string, title, description, year,
              debug, ignore_case, parser_filename, create_zip,
              input_format, output_format ]
-
 ### END read_command_line_parameters ###
 
 
@@ -844,7 +846,6 @@ def print_config(config):
     print_info("Title:           " + config[6])
     print_info("Description:     " + config[7])
     print_info("Year:            " + config[8])
-
 ### END print_config ###
 
 
@@ -866,7 +867,6 @@ def check_ifo_file(ifo_filename):
         return True, type_sequence
     else:
         return False, type_sequence
-
 ### END check_ifo_file ###
 
 
@@ -889,7 +889,6 @@ def check_idx_file(idx_filename):
         return True
 
     return False
-
 ### END check_idx_file ###
 
 
@@ -912,7 +911,6 @@ def check_dict_file(dict_filename):
         return True
 
     return False
-
 ### END check_dict_file ###
 
 
@@ -920,9 +918,7 @@ def check_dict_file(dict_filename):
 # check_xml_file(xml_filename)
 # checks that xml_filename exists
 def check_xml_file(xml_filename):
-
     return os.path.isfile(xml_filename)
-
 ### END check_xml_file ###
 
 
@@ -942,7 +938,6 @@ def check_parser(parser_filename):
         return None
 
     return parser
-
 ### END check_parser ###
 
 
@@ -954,7 +949,6 @@ def check_existence(filename):
         return False
 
     return os.path.isfile(filename)
-
 ### END check_existence ###
 
 
@@ -962,13 +956,11 @@ def check_existence(filename):
 # print_error(error, displayusage=True)
 # print the given error, call usage, and exit
 # optional displayusage to skip usage
-
 def print_error(error, displayusage = True):
     sys.stderr.write ("[ERROR] " + error + " Aborting.\n")
     if displayusage :
         usage()
     sys.exit(1)
-
 ### END print_error ###
 
 
@@ -977,7 +969,6 @@ def print_error(error, displayusage = True):
 # print the given info string
 def print_info(info):
     print("[INFO] " + info)
-
 ### END print_info ###
 
 
@@ -1037,13 +1028,11 @@ def usage():
     print('$ python3 penelope3.py -p foo -f en -t en --parser foo_parser.py --title "Custom EN dictionary" -i')
     print(' As above but ignore case when inserting words into the index')
     print('')
-
 ### END usage ###
 
 
 ### BEGIN main ###
 def main():
-
     # read command line parameters
     [ prefix,
       language_from,
@@ -1226,13 +1215,11 @@ def main():
         print_info('Outputting in Kobo format to file...')
         write_to_Kobo_format(config, parsed_data, debug)
         print_info("File " + compressed_dictionary_filename + " created successfully!")
-
-
 ### END main ###
+
 
 
 
 if __name__ == '__main__':
     main()
-
 
