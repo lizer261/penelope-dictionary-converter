@@ -4,7 +4,7 @@ __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012 Alberto Pettarin (pettarin gmail.com)'
 __version__     = 'v1.11'
-__date__        = '2012-12-22'
+__date__        = '2012-12-23'
 __description__ = 'Penelope converts a Stardict or XML-like dictionary into Cybook Odyssey, Kobo, and Stardict formats'
 
 
