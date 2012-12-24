@@ -3,13 +3,14 @@
 __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012 Alberto Pettarin (pettarin gmail.com)'
-__version__     = 'v1.11'
-__date__        = '2012-12-23'
-__description__ = 'Penelope converts a Stardict or XML-like dictionary into Cybook Odyssey, Kobo, and Stardict formats'
+__version__     = 'v1.12'
+__date__        = '2012-12-24'
+__description__ = 'Penelope converts a StarDict or XML-like dictionary into Cybook Odyssey, Kobo, and Stardict formats'
 
 
 ### BEGIN changelog ###
 #
+# 1.12 StarDict and Kobo output with multiset index (multiple occurrences of the same keyword)
 # 1.11 Support for non-ASCII characters in filenames for Kobo output
 # 1.10 Verions alignment with penelope3
 # 1.09 Added "b" to open() calls and added unlink(): now penelope works under Windows with Python 2.7.3
@@ -24,7 +25,7 @@ __description__ = 'Penelope converts a Stardict or XML-like dictionary into Cybo
 #
 ### END changelog ###
 
-import getopt, gzip, imp, os, sqlite3, struct, subprocess, sys, zipfile
+import collections, getopt, gzip, imp, os, sqlite3, struct, subprocess, sys, zipfile
 
 
 ### Path to working MARISA executables ###
@@ -60,8 +61,7 @@ def collate_function(string1, string2):
 # read data from the given stardict dictionary
 # and return a list of [ [word, definition] ]
 # if ignore_case = True, lowercase all the index word
-def read_from_stardict_format(idx_input_filename,
-        dict_input_filename, ignore_case):
+def read_from_stardict_format(idx_input_filename, dict_input_filename, ignore_case):
 
     data = []
 
@@ -212,7 +212,7 @@ def write_to_Odyssey_format(config, data, debug):
     chunk_filenames = [ current_chunk_filename ]
 
     # keep a dictionary of words, with their sql_tuples
-    global_dictionary = dict()
+    global_dictionary = collections.defaultdict(list)
 
     # keep a global list of substitutions
     global_substitutions = []
@@ -248,7 +248,7 @@ def write_to_Odyssey_format(config, data, debug):
             sql_cursor.execute('insert into T_DictIndex values (?,?,?,?,?)', sql_tuple)
 
             # insert word into global dictionary
-            global_dictionary[word] = sql_tuple
+            global_dictionary[word].append(sql_tuple)
 
             # insert synonyms into index file, pointing at current definition
             for s in synonyms:
@@ -292,6 +292,8 @@ def write_to_Odyssey_format(config, data, debug):
         sub_to = substitution[1]
 
         if sub_to in global_dictionary:
+            # TODO Possible issue if global_dictionary[sub_to] is a list!
+            # TODO If you define your own parser and you use substitutions, be aware of this!
             sql_tuple = global_dictionary[sub_to]
             sql_tuple = ( sql_tuple[0], sub_from, sql_tuple[2], sql_tuple[3], sql_tuple[4] )
             sql_cursor.execute('insert into T_DictIndex values (?,?,?,?,?)', sql_tuple)
@@ -355,7 +357,7 @@ def write_to_StarDict_format(config, data, debug):
         debug_file = open("debug." + dictionary_filename, "wb")
 
     # keep a dictionary of words, with their sql_tuples
-    global_dictionary = dict()
+    global_dictionary = collections.defaultdict(list)
 
     # keep a global list of substitutions
     global_substitutions = []
@@ -392,12 +394,12 @@ def write_to_StarDict_format(config, data, debug):
 
             # insert word into global dictionary
             sql_tuple = (word, byte_count, definition_length, 0)
-            global_dictionary[word] = sql_tuple
+            global_dictionary[word].append(sql_tuple)
 
             # insert synonyms into index file, pointing at current definition
             for s in synonyms:
                 sql_tuple = (s, byte_count, definition_length, 0)
-                global_dictionary[s] = sql_tuple
+                global_dictionary[s].append(sql_tuple)
         else:
             if len(substitutions) > 0 :
                 global_substitutions += substitutions
@@ -418,9 +420,11 @@ def write_to_StarDict_format(config, data, debug):
         sub_to = substitution[1]
 
         if sub_to in global_dictionary:
+            # TODO Possible issue if global_dictionary[sub_to] is a list!
+            # TODO If you define your own parser and you use substitutions, be aware of this!
             sql_tuple = global_dictionary[sub_to]
             sql_tuple = ( sub_from, sql_tuple[1], sql_tuple[2], sql_tuple[3] )
-            global_dictionary[sub_from] = sql_tuple
+            global_dictionary[sub_from].append(sql_tuple)
 
 
     # sort keys (needed by StarDict format)
@@ -430,11 +434,20 @@ def write_to_StarDict_format(config, data, debug):
     # write index file
     index_file = open(index_filename, "wb")
     for k in keys:
-        sql_tuple = global_dictionary[k]
-        index_file.write(sql_tuple[0])
-        index_file.write('\0')
-        index_file.write(struct.pack('>i', sql_tuple[1]))
-        index_file.write(struct.pack('>i', sql_tuple[2]))
+        if type(global_dictionary[k]) is tuple:
+            # single keyword
+            sql_tuple = global_dictionary[k]
+            index_file.write(sql_tuple[0])
+            index_file.write('\0')
+            index_file.write(struct.pack('>i', sql_tuple[1]))
+            index_file.write(struct.pack('>i', sql_tuple[2]))
+        else:
+            # multiple keyword
+            for sql_tuple in global_dictionary[k]:
+                index_file.write(sql_tuple[0])
+                index_file.write('\0')
+                index_file.write(struct.pack('>i', sql_tuple[1]))
+                index_file.write(struct.pack('>i', sql_tuple[2]))
     index_file.close()
 
 
@@ -491,7 +504,7 @@ def write_to_Kobo_format(config, data, debug):
         debug_file = open("debug." + dictionary_filename, "wb")
 
     # keep a dictionary of words, with their sql_tuples
-    global_dictionary = dict()
+    global_dictionary = collections.defaultdict(list)
 
     # keep a global list of substitutions
     global_substitutions = []
@@ -524,12 +537,12 @@ def write_to_Kobo_format(config, data, debug):
 
             # insert word into global dictionary
             sql_tuple = (word, byte_count, definition_length, 0, definition)
-            global_dictionary[word] = sql_tuple
+            global_dictionary[word].append(sql_tuple)
 
             # insert synonyms into index file, pointing at current definition
             for s in synonyms:
                 sql_tuple = (s, byte_count, definition_length, 0, definition)
-                global_dictionary[s] = sql_tuple
+                global_dictionary[s].append(sql_tuple)
         else:
             if len(substitutions) > 0 :
                 global_substitutions += substitutions
@@ -546,9 +559,11 @@ def write_to_Kobo_format(config, data, debug):
         sub_to = substitution[1]
 
         if sub_to in global_dictionary:
+            # TODO Possible issue if global_dictionary[sub_to] is a list!
+            # TODO If you define your own parser and you use substitutions, be aware of this!
             sql_tuple = global_dictionary[sub_to]
             sql_tuple = ( sub_from, sql_tuple[1], sql_tuple[2], sql_tuple[3], sql_tuple[4] )
-            global_dictionary[sub_from] = sql_tuple
+            global_dictionary[sub_from].append(sql_tuple)
 
 
     # sort keys (needed by StarDict format)
@@ -578,8 +593,15 @@ def write_to_Kobo_format(config, data, debug):
         f.write("<?xml version=\"1.0\" encoding=\"utf-8\"?><html>")
         for k in fileToKey[p]:
             word = k
-            definition = global_dictionary[k][4]
-            f.write("<w><a name=\"%s\"/><div><b>%s</b><br/>%s</div></w>" % (word, word, definition))
+            if type(global_dictionary[k]) is tuple:
+                # single keyword
+                definition = global_dictionary[k][4]
+                f.write("<w><a name=\"%s\"/><div><b>%s</b><br/>%s</div></w>" % (word, word, definition))
+            else:
+                # multiple keyword
+                for sql_tuple in global_dictionary[k]:
+                    definition = sql_tuple[4]
+                    f.write("<w><a name=\"%s\"/><div><b>%s</b><br/>%s</div></w>" % (word, word, definition))
         f.write("</html>")
         f.close()
 
@@ -597,8 +619,7 @@ def write_to_Kobo_format(config, data, debug):
     # accumulate index file
     index_file = ""
     for k in keys:
-        sql_tuple = global_dictionary[k]
-        index_file += (sql_tuple[0] + "\n")
+        index_file += (k + "\n")
 
     # compress index with MARISA
     print_info("Creating compressed index file " + index_filename + "...") 
@@ -1166,8 +1187,7 @@ def main():
     print_info('Reading input dictionary...')
     # data = [ [word, definition] ]
     if input_format == 'sd':
-        data = read_from_stardict_format(idx_input_filename,
-            dict_input_filename, ignore_case)
+        data = read_from_stardict_format(idx_input_filename, dict_input_filename, ignore_case)
 
     if input_format == 'xml':
         data = read_from_xml_format(xml_input_filename, ignore_case)
