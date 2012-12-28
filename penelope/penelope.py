@@ -3,16 +3,17 @@
 __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012 Alberto Pettarin (pettarin gmail.com)'
-__version__     = 'v1.12'
-__date__        = '2012-12-24'
+__version__     = 'v1.13'
+__date__        = '2012-12-28'
 __description__ = 'Penelope converts a StarDict or XML-like dictionary into Cybook Odyssey, Kobo, and Stardict formats'
 
 
 ### BEGIN changelog ###
 #
+# 1.13 Version alignment with penelope3
 # 1.12 StarDict and Kobo output with multiset index (multiple occurrences of the same keyword)
 # 1.11 Support for non-ASCII characters in filenames for Kobo output
-# 1.10 Verions alignment with penelope3
+# 1.10 Version alignment with penelope3
 # 1.09 Added "b" to open() calls and added unlink(): now penelope works under Windows with Python 2.7.3
 # 1.08 Better management of Kobo output
 # 1.07 Added Kobo output

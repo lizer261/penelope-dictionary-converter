@@ -3,13 +3,14 @@
 __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012 Alberto Pettarin (pettarin gmail.com)'
-__version__     = 'v1.12'
-__date__        = '2012-12-24'
+__version__     = 'v1.13'
+__date__        = '2012-12-28'
 __description__ = 'Penelope converts a StarDict or XML-like dictionary into Cybook Odyssey, Kobo, and Stardict formats'
 
 
 ### BEGIN changelog ###
 #
+# 1.13 Fixed a bug (?) on Python 3.3 under Windows
 # 1.12 StarDict and Kobo output with multiset index (multiple occurrences of the same keyword)
 # 1.11 Support for non-ASCII characters in filenames for Kobo output
 # 1.10 penelope3.py works under Linux with Python 3.2.3
@@ -211,7 +212,7 @@ def write_to_Odyssey_format(config, data, debug):
     byte_count = 0
     current_chunk = 1
     current_chunk_filename = CHUNK_STRING + str(current_chunk)
-    current_chunk_file = open(current_chunk_filename, "w")
+    current_chunk_file = open(current_chunk_filename, "wb")
     chunk_filenames = [ current_chunk_filename ]
 
     # keep a dictionary of words, with their sql_tuples
@@ -244,7 +245,7 @@ def write_to_Odyssey_format(config, data, debug):
                 debug_file.write(definition)
 
             # write definition to current chunk file
-            current_chunk_file.write(definition)
+            current_chunk_file.write(bytearray(definition, "utf-8"))
 
             # insert word into index file
             sql_tuple = (0, word, byte_count, definition_length, current_chunk)
@@ -266,7 +267,7 @@ def write_to_Odyssey_format(config, data, debug):
                 current_chunk_file.close()
                 current_chunk += 1
                 current_chunk_filename = CHUNK_STRING + str(current_chunk)
-                current_chunk_file = open(current_chunk_filename, "w")
+                current_chunk_file = open(current_chunk_filename, "wb")
                 chunk_filenames += [ current_chunk_filename ]
                 byte_count = 0
         else:
