@@ -23,10 +23,12 @@ containing the word "Penelope" in the subject. Thanks!
 
 ----
 
-*ACKNOWLEDGMENTS:* many thanks to _uwelovesdonna_
+*ACKNOWLEDGMENTS:* many thanks to:
+_uwelovesdonna_
 for contributing ideas for improving the code and
-for setting up many pages of the project wiki,
-and to _Jens Sadowski_
+for setting up many pages of the project wiki;
+_Jens Sadowski_
 for pointing out a bug with Unicode file names
-and for suggesting using multiset dict() instead of set dict().
-
+and for suggesting using multiset dict() instead of set dict();
+_OldNat_
+for pointing out a bug under Windows and Python3.
