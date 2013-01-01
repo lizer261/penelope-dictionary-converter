@@ -1386,7 +1386,7 @@ def usage():
     print ' -i                     : ignore word case while building the dictionary index'
     print ' -z                     : create the .install zip file containing the dictionary and the index'
     print ' --sd                   : input dictionary in StarDict format (default)'
-    print ' --xml                  : input dictionary in XML format (<entry><key>...</key><def>...</def></entry> ...)'
+    print ' --xml                  : input dictionary in XML format'
     print ' --odyssey              : input dictionary in Bookeen Cybook Odyssey format'
     print ' --kobo                 : input dictionary in Kobo format'
     print ' --output-odyssey       : output dictionary in Bookeen Cybook Odyssey format (default)'
