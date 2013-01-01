@@ -1,10 +1,11 @@
-Penelope is a utility that allows you to format a dictionary for
-the Bookeen Cybook Odyssey or for Kobo eReaders.
+Penelope is a multi-tool for creating, editing and converting dictionaries, especially for eReader devices.
 
 With the current version (v. 1.14, 2013-01-01) you can:
-  * convert a dictionary
-    * FROM StarDict or XML formats
-    * TO Bookeen Cybook Odyssey, Kobo or StarDict formats
+  * convert a dictionary FROM/TO the following formats:
+    * Bookeen Cybook Odyssey
+    * Kobo
+    * StarDict
+    * XML 
   * define your own parser for each word/definition
   * generate an EPUB file containing the index of a given dictionary (e.g., to cope with the lack of a search function on your eReader)
 
