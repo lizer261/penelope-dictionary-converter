@@ -15,7 +15,7 @@ __description__ = 'dictEPUB creates a dictionary in EPUB format from a list of w
 
 import codecs, collections, os, shutil, sqlite3, sys, uuid, zipfile
 
-class dictEPUB:
+class dictEPUB3:
 
     NUMBER_LETTERS_PER_GROUP = 3
     NUMBER_WORDS_PER_GROUP = 128
@@ -617,6 +617,6 @@ class dictEPUB:
 
 
 if __name__ == '__main__':
-    d = dictEPUB()
+    d = dictEPUB3()
     d.main()
 

@@ -2,14 +2,15 @@
 
 __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
-__copyright__   = '2012 Alberto Pettarin (pettarin gmail.com)'
-__version__     = 'v1.13'
-__date__        = '2012-12-28'
-__description__ = 'Penelope converts a StarDict or XML-like dictionary into Cybook Odyssey, Kobo, and Stardict formats'
+__copyright__   = '2012, 2013 Alberto Pettarin (pettarin gmail.com)'
+__version__     = 'v1.14'
+__date__        = '2013-01-01'
+__description__ = 'Penelope is a multi-tool for creating, editing and converting dictionaries, especially for eReader devices'
 
 
 ### BEGIN changelog ###
 #
+# 1.14 Added: read from Kobo and Odyssey format, write to XML format, and output EPUB dictionary
 # 1.13 Fixed a bug (?) on Python 3.3 under Windows
 # 1.12 StarDict and Kobo output with multiset index (multiple occurrences of the same keyword)
 # 1.11 Support for non-ASCII characters in filenames for Kobo output
@@ -27,7 +28,7 @@ __description__ = 'Penelope converts a StarDict or XML-like dictionary into Cybo
 ### END changelog ###
 
 import collections, getopt, gzip, imp, os, sqlite3, struct, subprocess, sys, zipfile
-
+from dictEPUB3 import dictEPUB3
 
 ### Path to working MARISA executables ###
 #
@@ -41,8 +42,8 @@ import collections, getopt, gzip, imp, os, sqlite3, struct, subprocess, sys, zip
 # MARISA_BUILD_PATH="C:\kobo\marisa\marisa-build.exe"
 #
 MARISA_BUILD_PATH="/home/alberto/.bin/marisa-0.2.0/tools/marisa-build"
+MARISA_REVERSE_LOOKUP_PATH="/home/alberto/.bin/marisa-0.2.0/tools/marisa-reverse-lookup"
 ### Path to working MARISA executables ###
-
 
 
 
@@ -149,6 +150,128 @@ def read_from_xml_format(xml_input_filename, ignore_case):
 
     return data
 ### END read_from_xml_format ###
+
+
+### BEGIN read_from_odyssey_format ###
+# read_from_odyssey_format(idx_input_filename,
+#   dict_input_filename, ignore_case)
+# read data from the given odyssey dictionary
+# and return a list of [ [word, definition] ]
+# if ignore_case = True, lowercase all the index word
+def read_from_odyssey_format(idx_input_filename, dict_input_filename, ignore_case):
+
+    data = []
+
+    # unzip dictionary
+    extractedFiles = unzip(dict_input_filename)
+
+    # open index
+    sql_connection = sqlite3.connect(idx_input_filename)
+    
+    # install collation in the index
+    #sql_connection.create_collation("IcuNoCase", collate_function)
+    #sql_connection.text_factory = str
+
+    # get a cursor
+    sql_cursor = sql_connection.cursor()
+    # get the index data
+    sql_cursor.execute('select * from T_DictIndex ')
+    index_data = sql_cursor.fetchall()
+
+    # dictionary from file to words
+    words = collections.defaultdict(list)
+
+    # process index
+    for tuple in index_data:
+        key = tuple[1]
+        if ignore_case:
+            key = key.lower()
+        offset = tuple[2]
+        length = tuple[3]
+        cNumber = tuple[4]
+        words[cNumber].append([key, offset, length])
+
+    cNumberMax = len(words.keys())
+    for i in range(1, cNumberMax+1):
+        f = open("c_" + str(i), "rb")
+        for tuple in words[i]:
+            definition = ""
+            key = tuple[0]
+            offset = tuple[1]
+            length = tuple[2]
+            f.seek(offset)
+            definition = f.read(length)
+            data += [ [key, definition.decode("utf-8")] ]
+        f.close()
+
+    sql_cursor.close()
+    sql_connection.close()
+
+    for e in extractedFiles:
+        os.remove(e)
+
+    return data
+### END read_from_odyssey_format ###
+
+
+### BEGIN unzip ###
+# unzip(zip_filename)
+# unzip the give zip_filename
+# returning the list of extracted files
+def unzip(zip_filename):
+    extractedFiles = []
+    zfile = zipfile.ZipFile(zip_filename)
+    for name in zfile.namelist():
+        (dirname, filename) = os.path.split(name)
+        if (len(dirname) > 0 and not os.path.exists(dirname)):
+            os.mkdir(dirname)
+        fd = open(name,"wb")
+        fd.write(zfile.read(name))
+        fd.close()
+        extractedFiles += [ name ]
+    return extractedFiles
+### END unzip ###
+
+
+### BEGIN read_from_kobo_format ###
+# read_from_kobo_format(kobo_input_filename, ignore_case)
+# read data from the given Kobo dictionary
+# and return a list of [ [word, definition] ]
+# if ignore_case = True, lowercase all the index word
+def read_from_kobo_format(kobo_input_filename, ignore_case):
+
+    data = []
+    
+    # extract words file
+    words_filename = "words"
+    zfile = zipfile.ZipFile(kobo_input_filename)
+    fd = open(words_filename,"wb")
+    fd.write(zfile.read(words_filename))
+    fd.close()
+    
+    ids = ""
+    for i in range(1000000):
+        ids += str(i) + "\n"
+    ids = bytearray(ids, "utf-8")
+
+    p = subprocess.Popen([MARISA_REVERSE_LOOKUP_PATH, words_filename], stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout = p.communicate(input=ids)[0].decode("utf-8")
+
+    for s in stdout.splitlines():
+        x = s.split("\t")
+        if len(x) > 1:
+            key = x[1]
+            if ignore_case:
+                key = key.lower()
+            #TODO just return the index, as content might be encrypted
+            if (len(key) > 0):
+                data += [ [key, ""] ]    
+
+    # unzip dictionary
+    os.remove(words_filename)
+
+    return data
+### END read_from_kobo_format ###
 
 
 ### BEGIN write_to_Odyssey_format ###
@@ -471,6 +594,238 @@ def write_to_StarDict_format(config, data, debug):
 ### END write_to_StarDict_format ###
 
 
+### BEGIN write_to_XML_format ###
+# write_to_XML_format(config, data, debug)
+# write data to the XML format, using the config settings
+#
+# config = [ dictionary_filename, index_filename, language_from, language_to,
+#            license_string, copyright_string, title, description, year, info_filename ]
+#
+# data = [ word, include, synonyms, substitutions, definition ]
+#
+# where:
+#        word is the sorting key
+#        include is a boolean saying whether the word should be included
+#        synonyms is a list of alternative strings for word
+#        substitutions is a list of pairs [ word_to_replace, replacement ]
+#        definition is the definition of word
+def write_to_XML_format(config, data, debug):
+ 
+    # read config parameters
+    [ dictionary_filename,
+      index_filename,
+      language_from,
+      language_to,
+      license_string,
+      copyright_string,
+      title,
+      description,
+      year,
+      info_filename ] = config
+
+
+    # open debug file
+    if debug:
+        debug_file = open("debug." + dictionary_filename, "wb")
+
+    # keep a dictionary of words, with their sql_tuples
+    global_dictionary = collections.defaultdict(list)
+
+    # keep a global list of substitutions
+    global_substitutions = []
+
+    # sort input data
+    # data.sort()
+
+    # load dictionary
+    byte_count = 0
+
+    for d in data:
+
+        # get data
+        word = d[0]
+        include = d[1]
+        synonyms = d[2]
+        substitutions = d[3]
+        if debug:
+            # augment readability of c_* files
+            definition = d[4] + "\n"
+        else:
+            # save 1 byte
+            definition = d[4]
+        definition_length = len(definition)
+
+        if (include):
+            # append word into log file
+            if debug:
+                debug_file.write(word + "\n")
+
+            # insert word into global dictionary
+            sql_tuple = (word, byte_count, definition_length, 0, definition)
+            global_dictionary[word].append(sql_tuple)
+
+            # insert synonyms into index file, pointing at current definition
+            for s in synonyms:
+                sql_tuple = (s, byte_count, definition_length, 0, definition)
+                global_dictionary[s].append(sql_tuple)
+        else:
+            if len(substitutions) > 0 :
+                global_substitutions += substitutions
+
+        byte_count += definition_length
+
+    # close output files
+    if debug:
+        debug_file.close()
+
+    # process substitutions
+    for substitution in global_substitutions:
+        sub_from = substitution[0]
+        sub_to = substitution[1]
+
+        if sub_to in global_dictionary:
+            # TODO Possible issue if global_dictionary[sub_to] is a list!
+            # TODO If you define your own parser and you use substitutions, be aware of this!
+            sql_tuple = global_dictionary[sub_to]
+            sql_tuple = ( sub_from, sql_tuple[1], sql_tuple[2], sql_tuple[3], sql_tuple[4] )
+            global_dictionary[sub_from].append(sql_tuple)
+
+
+    # sort keys (needed by StarDict format)
+    keys = list(global_dictionary.keys())
+    keys.sort()
+
+    # output to XML format
+    f = open(dictionary_filename, "w")
+    f.write("<?xml version=\"1.0\" encoding=\"utf-8\"?>")
+    f.write("<!DOCTYPE document SYSTEM \"dictionary.dtd\">")
+    f.write("<dictionary>")
+    for k in keys:
+        word = k
+        if type(global_dictionary[k]) is tuple:
+            # single keyword
+            definition = global_dictionary[k][4]
+            f.write("<entry><key>%s</key><def>%s</def></entry>" % (word, definition))
+        else:
+            # multiple keyword
+            for sql_tuple in global_dictionary[k]:
+                definition = sql_tuple[4]
+                f.write("<entry><key>%s</key><def>%s</def></entry>" % (word, definition))
+    f.write("</dictionary>")
+    f.close()
+### END write_to_XML_format ###
+
+
+### BEGIN write_to_EPUB_format ###
+# write_to_EPUB_format(config, data, debug)
+# write data to the EPUB format, using the config settings
+#
+# config = [ dictionary_filename, index_filename, language_from, language_to,
+#            license_string, copyright_string, title, description, year, info_filename ]
+#
+# data = [ word, include, synonyms, substitutions, definition ]
+#
+# where:
+#        word is the sorting key
+#        include is a boolean saying whether the word should be included
+#        synonyms is a list of alternative strings for word
+#        substitutions is a list of pairs [ word_to_replace, replacement ]
+#        definition is the definition of word
+def write_to_EPUB_format(config, data, debug):
+ 
+    # read config parameters
+    [ dictionary_filename,
+      index_filename,
+      language_from,
+      language_to,
+      license_string,
+      copyright_string,
+      title,
+      description,
+      year,
+      info_filename ] = config
+
+
+    # open debug file
+    if debug:
+        debug_file = open("debug." + dictionary_filename, "wb")
+
+    # keep a dictionary of words, with their sql_tuples
+    global_dictionary = collections.defaultdict(list)
+
+    # keep a global list of substitutions
+    global_substitutions = []
+
+    # sort input data
+    # data.sort()
+
+    # load dictionary
+    byte_count = 0
+
+    for d in data:
+
+        # get data
+        word = d[0]
+        include = d[1]
+        synonyms = d[2]
+        substitutions = d[3]
+        if debug:
+            # augment readability of c_* files
+            definition = d[4] + "\n"
+        else:
+            # save 1 byte
+            definition = d[4]
+        definition_length = len(definition)
+
+        if (include):
+            # append word into log file
+            if debug:
+                debug_file.write(word + "\n")
+
+            # insert word into global dictionary
+            sql_tuple = (word, byte_count, definition_length, 0, definition)
+            global_dictionary[word].append(sql_tuple)
+
+            # insert synonyms into index file, pointing at current definition
+            for s in synonyms:
+                sql_tuple = (s, byte_count, definition_length, 0, definition)
+                global_dictionary[s].append(sql_tuple)
+        else:
+            if len(substitutions) > 0 :
+                global_substitutions += substitutions
+
+        byte_count += definition_length
+
+    # close output files
+    if debug:
+        debug_file.close()
+
+    # process substitutions
+    for substitution in global_substitutions:
+        sub_from = substitution[0]
+        sub_to = substitution[1]
+
+        if sub_to in global_dictionary:
+            # TODO Possible issue if global_dictionary[sub_to] is a list!
+            # TODO If you define your own parser and you use substitutions, be aware of this!
+            sql_tuple = global_dictionary[sub_to]
+            sql_tuple = ( sub_from, sql_tuple[1], sql_tuple[2], sql_tuple[3], sql_tuple[4] )
+            global_dictionary[sub_from].append(sql_tuple)
+
+
+    # sort keys (needed by StarDict format)
+    keys = list(global_dictionary.keys())
+    keys.sort()
+
+    clean_keys = []
+    for k in keys:
+        clean_keys += [ k ]
+
+    # output to EPUB
+    d = dictEPUB3()
+    d.createEPUBDictionary(clean_keys, language_from, dictionary_filename)
+### END write_to_EPUB_format ###
+
 
 ### BEGIN write_to_Kobo_format ###
 # write_to_Kobo_format(config, data, debug)
@@ -605,7 +960,6 @@ def write_to_Kobo_format(config, data, debug):
                 for sql_tuple in global_dictionary[k]:
                     definition = sql_tuple[4]
                     f.write("<w><a name=\"%s\"/><div><b>%s</b><br/>%s</div></w>" % (word, word, definition))
-
         f.write("</html>")
         f.close()
 
@@ -628,7 +982,7 @@ def write_to_Kobo_format(config, data, debug):
     # compress index with MARISA
     print_info("Creating compressed index file " + index_filename + "...") 
     p = subprocess.Popen([MARISA_BUILD_PATH, "-o", index_filename], stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-    p.communicate(input=index_file)[0]
+    p.communicate(input=index_file)
     fileNames += [ index_filename ]
 
     # create ZIP file
@@ -751,15 +1105,21 @@ def compress_StarDict_dictionary(dictionary_filename, compressed_dictionary_file
 # --parser : parser to be used while parsing input dictionary
 # --sd : input format is StarDict (default)
 # --xml : input format is XML
+# --odyssey : input format is Bookeen Cybook Odyssey
+# --kobo : input format is Kobo
+# --output-odyssey : output format is Bookeen Cybook Odyssey (default)
 # --output-sd : output format is StarDict
+# --output-xml : output format is XML
 # --output-kobo : output format is Kobo
+# --output-epub : output format is epub
 def read_command_line_parameters(argv):
 
     try:
         optlist, free = getopt.getopt(argv[1:], 'dhizf:p:t:',
             ['license=', 'copyright=', 'title=',
                 'description=', 'year=', 'parser=',
-                'sd', 'xml', 'output-sd', 'output-kobo'])
+                'sd', 'xml', 'odyssey', 'kobo',
+                'output-odyssey', 'output-sd', 'output-xml', 'output-kobo', 'output-epub'])
     except getopt.GetoptError as err:
         print_error(str(err))
         usage()
@@ -782,18 +1142,28 @@ def read_command_line_parameters(argv):
         input_format = 'sd'
     if '--xml' in optdict:
         input_format = 'xml'
+    if '--odyssey' in optdict:
+        input_format = 'odyssey'
+    if '--kobo' in optdict:
+        input_format = 'kobo'
 
     output_format = 'odyssey'
+    if '--output-odyssey' in optdict:
+        output_format = 'odyssey'
     if '--output-sd' in optdict:
         output_format = 'sd'
+    if '--output-xml' in optdict:
+        output_format = 'xml'
     if '--output-kobo' in optdict:
         output_format = 'kobo'
+    if '--output-epub' in optdict:
+        output_format = 'epub'
 
     language_from = ''
     if '-f' in optdict:
         language_from = optdict['-f']
     else:
-        if output_format == 'odyssey' or output_format == 'kobo':
+        if output_format == 'odyssey' or output_format == 'kobo' or output_format == 'epub':
             print_error('No language_from parameter was supplied.')
 
     language_to = ''
@@ -885,7 +1255,7 @@ def check_ifo_file(ifo_filename):
             type_sequence = line.strip().split('=')[1]
     ifo_file.close()
 
-    if type_sequence in ['m', 'l', 'x', "w"]:
+    if type_sequence in ['m', 'l', 'g', 'x', 'y', 'k', 'w', 'h']:
         return True, type_sequence
     else:
         return False, type_sequence
@@ -942,6 +1312,14 @@ def check_dict_file(dict_filename):
 def check_xml_file(xml_filename):
     return os.path.isfile(xml_filename)
 ### END check_xml_file ###
+
+
+### BEGIN check_kobo_file ###
+# check_kobo_file(kobo_filename)
+# checks that kobo_filename exists
+def check_kobo_file(kobo_filename):
+    return os.path.isfile(kobo_filename)
+### END check_kobo_file ###
 
 
 ### BEGIN check_parser ###
@@ -1002,7 +1380,7 @@ def usage():
     print('$ python3 penelope3.py -p <prefix> -f <language_from> -t <language_to> [OPTIONS]')
     print('')
     print('Required arguments:')
-    print(' -p <prefix>            : name of the dictionary to be converted (prefix.ifo, prefix.idx[.gz], prefix.dict[.dz])')
+    print(' -p <prefix>            : name of the dictionary to be converted (without extension)')
     print(' -f <language_from>     : ISO 631-2 code language_from of the dictionary to be converted')
     print(' -t <language_to>       : ISO 631-2 code language_to of the dictionary to be converted')
     print('')
@@ -1012,9 +1390,14 @@ def usage():
     print(' -i                     : ignore word case while building the dictionary index')
     print(' -z                     : create the .install zip file containing the dictionary and the index')
     print(' --sd                   : input dictionary in StarDict format (default)')
-    print(' --xml                  : input dictionary in XML format (<entry><key>...</key><def>...</def></entry> ...)')
+    print(' --xml                  : input dictionary in XML format)')
+    print(' --odyssey              : input dictionary in Bookeen Cybook Odyssey format')
+    print(' --kobo                 : input dictionary in Kobo format')
+    print(' --output-odyssey       : output dictionary in Bookeen Cybook Odyssey format (default)')
     print(' --output-sd            : output dictionary in StarDict format')
+    print(' --output-xml           : output dictionary in XML format')
     print(' --output-kobo          : output dictionary in Kobo format')
+    print(' --output-epub          : output EPUB file containing the index of the input dictionary')
     print(' --title <string>       : set the title string shown on the Odyssey screen to <string>')
     print(' --license <string>     : set the license string to <string>')
     print(' --copyright <string>   : set the copyright string to <string>')
@@ -1050,7 +1433,7 @@ def usage():
     print('$ python3 penelope3.py -p foo -f en -t en --parser foo_parser.py --title "Custom EN dictionary" -i')
     print(' As above but ignore case when inserting words into the index')
     print('')
-### END usage ###
+    ### END usage ###
 
 
 ### BEGIN main ###
@@ -1072,6 +1455,8 @@ def main():
       output_format ] = read_command_line_parameters(sys.argv)
 
     type_sequence = 'unknown'
+
+    # set input filenames
     if input_format == 'sd':
         # check ifo input file
         ifo_input_filename = prefix + ".ifo"
@@ -1092,13 +1477,32 @@ def main():
         if not readable:
             print_error("File " + dict_input_filename + " not found (even compressed).")
 
-
     if input_format == 'xml':
         # check xml input file
         xml_input_filename = prefix + ".xml"
         readable = check_xml_file(xml_input_filename)
         if not readable:
             print_error("File " + xml_input_filename + " not found.")
+
+    if input_format == 'odyssey':
+        # check idx input file, uncompressing it if it was compressed
+        idx_input_filename = prefix + ".dict.idx"
+        readable = check_idx_file(idx_input_filename)
+        if not readable:
+            print_error("File " + idx_input_filename + " not found (even compressed).")
+
+        # check dict input file, uncompressing it if it was compressed
+        dict_input_filename = prefix + ".dict"
+        readable = check_dict_file(dict_input_filename)
+        if not readable:
+            print_error("File " + dict_input_filename + " not found (even compressed).")
+
+    if input_format == 'kobo':
+        # check kobo input file
+        kobo_input_filename = prefix + ".zip"
+        readable = check_kobo_file(kobo_input_filename)
+        if not readable:
+            print_error("File " + kobo_input_filename + " not found.")
 
 
     # check parser input file, if one was given
@@ -1107,7 +1511,7 @@ def main():
         print_error("Parser " + parser_filename + " not found or with no parse(data, type_sequence, ignore_case) function.")
 
 
-    # set default dictionary, index and info filenames
+    # set output filenames
     if output_format == 'odyssey':
         if language_from == language_to:
             dictionary_filename = language_from + "." + prefix + ".dict"
@@ -1115,6 +1519,13 @@ def main():
             dictionary_filename = language_from + "-" + language_to + ".dict"
         index_filename =  dictionary_filename + ".idx"
         info_filename = ''
+
+        existing = False
+        existing = existing or check_existence(dictionary_filename)
+        existing = existing or check_existence(index_filename)
+        if existing:
+            dictionary_filename = "new." + dictionary_filename
+            index_filename = "new." + index_filename
 
     if output_format == 'sd':
         dictionary_filename = prefix + ".dict"
@@ -1127,12 +1538,21 @@ def main():
         existing = existing or check_existence(index_filename)
         existing = existing or check_existence(info_filename)
         existing = existing or check_existence(compressed_dictionary_filename)
-
         if existing:
-            dictionary_filename = "new." + prefix + ".dict"
-            index_filename = "new." + prefix + ".idx"
-            info_filename = "new." + prefix + ".ifo"
+            dictionary_filename = "new." + dictionary_filename
+            index_filename = "new." + index_filename
+            info_filename = "new." + info_filename
             compressed_dictionary_filename = dictionary_filename + ".dz"
+
+    if output_format == 'xml':
+        dictionary_filename = prefix + ".xml"
+        index_filename = ''
+        info_filename = ''
+
+        existing = False
+        existing = existing or check_existence(dictionary_filename)
+        if existing:
+            dictionary_filename = "new." + dictionary_filename
 
     if output_format == 'kobo':
         if language_from == language_to:
@@ -1155,6 +1575,16 @@ def main():
         if existing:
             dictionary_filename = "new." + dictionary_filename
             compressed_dictionary_filename = "new." + compressed_dictionary_filename
+
+    if output_format == 'epub':
+        dictionary_filename = prefix + ".epub"
+        index_filename = ''
+        info_filename = ''
+
+        existing = False
+        existing = existing or check_existence(dictionary_filename)
+        if existing:
+            dictionary_filename  = "new." + dictionary_filename
 
     # set the config list
     config = [ dictionary_filename,
@@ -1195,6 +1625,12 @@ def main():
     if input_format == 'xml':
         data = read_from_xml_format(xml_input_filename, ignore_case)
 
+    if input_format == 'odyssey':
+        data = read_from_odyssey_format(idx_input_filename, dict_input_filename, ignore_case)
+
+    if input_format == 'kobo':
+        data = read_from_kobo_format(kobo_input_filename, ignore_case)
+
 
     # parse input files
     print_info('Parsing the input dictionary...')
@@ -1231,11 +1667,23 @@ def main():
         else:
             print_info("Files " + dictionary_filename + ", " + index_filename + ", and " + info_filename + " created successfully!")
 
+    # write out to XML format
+    if output_format == 'xml':
+        print_info('Outputting in XML format to file...')
+        write_to_XML_format(config, parsed_data, debug)
+        print_info("File " + dictionary_filename + " created successfully!")
+
     # write out to Kobo format
     if output_format == 'kobo':
         print_info('Outputting in Kobo format to file...')
         write_to_Kobo_format(config, parsed_data, debug)
         print_info("File " + compressed_dictionary_filename + " created successfully!")
+
+    # write out to EPUB format
+    if output_format == 'epub':
+        print_info('Outputting in EPUB format to file...')
+        write_to_EPUB_format(config, parsed_data, debug)
+        print_info("File " + dictionary_filename + " created successfully!")
 ### END main ###
 
 
