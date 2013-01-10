@@ -3,19 +3,22 @@
 __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012, 2013 Alberto Pettarin (pettarin gmail.com)'
-__version__     = 'v1.01'
-__date__        = '2013-01-01'
+__version__     = 'v1.02'
+__date__        = '2013-01-10'
 __description__ = 'dictEPUB creates a dictionary in EPUB format from a list of words'
 
 ### BEGIN changelog ###
 #
+# 1.02 Code write-up
 # 1.01 Initial release
 #
 ### END changelog ###
 
 import codecs, collections, os, shutil, sqlite3, sys, uuid, zipfile
 
+#Python2#
 class dictEPUB:
+#Python3#class dictEPUB3:
 
     NUMBER_LETTERS_PER_GROUP = 3
     NUMBER_WORDS_PER_GROUP = 128
@@ -580,21 +583,21 @@ class dictEPUB:
     # usage()
     # print script usage
     def usage(self):
-        print ''
+        print("")
         #Python2#
-        print '$ python dictEPUB.py words language'
-        #Python3#        print('$ python3 dictEPUB3.py words language')
-        print ''
-        print 'Required argument:'
-        print ' words: the name of a UTF-8 plain text file containing the words of the dictionary, one word per line'
-        print ' language: the code for the language of the dictionary, in ISO 639-1 format'
-        print ''
-        print 'Examples:'
+        print("$ python dictEPUB.py words language")
+        #Python3#        print("$ python3 dictEPUB3.py words language")
+        print("")
+        print("Required argument:")
+        print(" words: the name of a UTF-8 plain text file containing the words of the dictionary, one word per line")
+        print(" language: the code for the language of the dictionary, in ISO 639-1 format")
+        print("")
+        print("Examples:")
         #Python2#
-        print ' $ python dictEPUB.py words.txt en'
-        #Python3#        print(' $ python3 dictEPUB3.py words.txt en')
-        print ' Create an EPUB file words.txt.epub containing the given list of English words'
-        print ''
+        print(" $ python dictEPUB.py words.txt en")
+        #Python3#        print(" $ python3 dictEPUB3.py words.txt en")
+        print(" Create an EPUB file words.txt.epub containing the given list of English words")
+        print("")
     ### END usage ###
 
 
@@ -617,6 +620,8 @@ class dictEPUB:
 
 
 if __name__ == '__main__':
+    #Python2#
     d = dictEPUB()
+    #Python3#    d = dictEPUB3()
     d.main()
 
