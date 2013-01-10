@@ -1,11 +1,12 @@
 Penelope is a multi-tool for creating, editing and converting dictionaries, especially for eReader devices.
 
-With the current version (v. 1.14, 2013-01-01) you can:
+With the current version (v. 1.15, 2013-01-10) you can:
   * convert a dictionary FROM/TO the following formats:
     * Bookeen Cybook Odyssey
     * Kobo
     * StarDict
-    * XML 
+    * XML
+    * CSV
   * define your own parser for each word/definition
   * generate an EPUB file containing the index of a given dictionary (e.g., to cope with the lack of a search function on your eReader)
 
@@ -34,4 +35,5 @@ containing the word "Penelope" in the subject. Thanks!
 *ACKNOWLEDGMENTS:* many thanks to:
   * _uwelovesdonna_ for contributing ideas for improving the code and for setting up many pages of the project wiki;
   * _Jens Sadowski_ for pointing out a bug with Unicode file names and for suggesting using multiset dict() instead of set dict();
-  * _oldnat_ for pointing out a bug under Windows and Python3.
+  * _oldnat_ for pointing out a bug under Windows and Python3;
+  * _Wolfgang Miller-Reichling_ for providing the code for reading CSV dictionaries.
