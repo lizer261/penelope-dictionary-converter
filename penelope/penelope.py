@@ -10,7 +10,7 @@ __description__ = 'Penelope is a multi-tool for creating, editing and converting
 
 ### BEGIN changelog ###
 #
-# 1.16 Added a command line option for specifying the fs for CSV input/output
+# 1.16 Added a command line option for specifying the field and/or line separator for CSV input/output
 # 1.15 Added read from CSV (courtesy of Wolfgang Miller-Reichling). Code clean-up
 # 1.14 Added read from Kobo and Odyssey format, write to XML format, and output EPUB dictionary
 # 1.13 Fixed a bug (?) on Python 3.3 under Windows
