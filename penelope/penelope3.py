@@ -3,15 +3,16 @@
 __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012, 2013 Alberto Pettarin (pettarin gmail.com)'
-__version__     = 'v1.15'
-__date__        = '2013-01-10'
+__version__     = 'v1.16'
+__date__        = '2013-01-11'
 __description__ = 'Penelope is a multi-tool for creating, editing and converting dictionaries, especially for eReader devices'
 
 
 ### BEGIN changelog ###
 #
-# 1.15 Added: read from CSV (courtesy of Wolfgang Miller-Reichling). Code clean-up
-# 1.14 Added: read from Kobo and Odyssey format, write to XML format, and output EPUB dictionary
+# 1.16 Added a command line option for specifying the fs for CSV input/output
+# 1.15 Added read from CSV (courtesy of Wolfgang Miller-Reichling). Code clean-up
+# 1.14 Added read from Kobo and Odyssey format, write to XML format, and output EPUB dictionary
 # 1.13 Fixed a bug (?) on Python 3.3 under Windows
 # 1.12 StarDict and Kobo output with multiset index (multiple occurrences of the same keyword)
 # 1.11 Support for non-ASCII characters in filenames for Kobo output
@@ -79,7 +80,6 @@ def read_from_stardict_format(idx_input_filename, dict_input_filename, ignore_ca
     dict_input = dict_input_file.read()
 
     # read the index file byte-by-byte
-    # TODO: is there a better way to handle this?
     #Python2#    word = ""
     #Python3#
     word = b''
@@ -144,7 +144,6 @@ def read_from_xml_format(xml_input_filename, ignore_case):
     # read the whole dictionary in memory
     xml_input = xml_input_file.read()
 
-    # TODO: not really robust code
     entry_pos = 0
     entry_pos = xml_input.find('<entry>', entry_pos)
     while entry_pos > -1:
@@ -268,6 +267,7 @@ def read_from_kobo_format(kobo_input_filename, ignore_case):
     fd.write(zfile.read(words_filename))
     fd.close()
     
+    # FIXME is there a better way to extract all the words from a MARISA trie?
     ids = ""
     for i in range(1000000):
         ids += str(i) + "\n"
@@ -285,9 +285,9 @@ def read_from_kobo_format(kobo_input_filename, ignore_case):
             key = x[1]
             if ignore_case:
                 key = key.lower()
-            #TODO just return the index, as content might be encrypted
+            # just return the index, since content might be encrypted
             if (len(key) > 0):
-                data += [ [key, ""] ]    
+                data += [ [key, ""] ]
 
     # unzip dictionary
     os.remove(words_filename)
@@ -297,11 +297,11 @@ def read_from_kobo_format(kobo_input_filename, ignore_case):
 
 
 ### BEGIN read_from_csv_format ###
-# read_from_csv_format(csv_input_filename, ignore_case)
+# read_from_csv_format(csv_input_filename, fs, ls, ignore_case)
 # read data from the given CSV dictionary
 # and return a list of [ [word, definition] ]
 # if ignore_case = True, lowercase all the index word
-def read_from_csv_format(csv_input_filename, ignore_case):
+def read_from_csv_format(csv_input_filename, fs, ls, ignore_case):
 
     data = []
 
@@ -309,21 +309,22 @@ def read_from_csv_format(csv_input_filename, ignore_case):
     #Python2#    csv_input_file = open(csv_input_filename, "rb")
     #Python3#
     csv_input_file = open(csv_input_filename, "r") 
+    csv_input = csv_input_file.read()
+    csv_input_file.close()
 
     # read the whole dictionary in memory
-    for line in csv_input_file:
-        lvals = line.split('\t', 1)
-	
-    if len(lvals) == 2:
-        key = lvals[0]
-        definition = lvals[1]
+    for line in csv_input.split(ls):
+        lvals = line.split(fs)
 
-        if ignore_case:
-            key = key.lower()
+        # grab the first two fields, ignore subsequent ones (if any)
+        if len(lvals) >= 2:
+            key = lvals[0]
+            definition = lvals[1]
 
-        data += [ [ key, definition ] ]
+            if ignore_case:
+                key = key.lower()
 
-    csv_input_file.close()
+            data += [ [ key, definition ] ]
 
     return data
 ### END read_from_csv_format ###
@@ -801,7 +802,7 @@ def write_to_xml_format(config, data, debug):
 
 
 ### BEGIN write_to_csv_format ###
-# write_to_csv_format(config, data, debug)
+# write_to_csv_format(config, data, fs, ls, debug)
 # write data to the csv format, using the config settings
 #
 # config = [ dictionary_filename, index_filename, language_from, language_to,
@@ -815,7 +816,7 @@ def write_to_xml_format(config, data, debug):
 #        synonyms is a list of alternative strings for word
 #        substitutions is a list of pairs [ word_to_replace, replacement ]
 #        definition is the definition of word
-def write_to_csv_format(config, data, debug):
+def write_to_csv_format(config, data, fs, ls, debug):
  
     # read config parameters
     [ dictionary_filename,
@@ -896,7 +897,6 @@ def write_to_csv_format(config, data, debug):
             sql_tuple = ( sub_from, sql_tuple[1], sql_tuple[2], sql_tuple[3], sql_tuple[4] )
             global_dictionary[sub_from].append(sql_tuple)
 
-
     # sort keys (needed by StarDict format)
     #Python2#    keys = global_dictionary.keys()
     #Python3#
@@ -911,13 +911,13 @@ def write_to_csv_format(config, data, debug):
         word = k
         if type(global_dictionary[k]) is tuple:
             # single keyword
-            definition = global_dictionary[k][4].replace("\n", " ")
-            f.write("%s\t%s\n" % (word, definition))
+            definition = global_dictionary[k][4].replace(ls, " ")
+            f.write("%s%s%s%s" % (word, fs, definition, ls))
         else:
             # multiple keyword
             for sql_tuple in global_dictionary[k]:
-                definition = sql_tuple[4].replace("\n", " ")
-                f.write("%s\t%s\n" % (word, definition))
+                definition = sql_tuple[4].replace(ls, " ")
+                f.write("%s%s%s%s" % (word, fs, definition, ls))
     f.close()
 ### END write_to_csv_format ###
 
@@ -1288,7 +1288,7 @@ def compress_install_file(dictionary_filename, index_filename, zip_filename):
 #
 def compress_StarDict_dictionary(dictionary_filename, compressed_dictionary_filename, delete_uncompressed):
 
-    # TODO: compressing with gzip library seems not working, I need to call dictzip
+    # FIXME compressing with gzip library seems not working, I need to call dictzip
 
     # compress the dictionary file with dictzip
     print_info("Creating compressed dictionary file " + compressed_dictionary_filename + "...") 
@@ -1344,6 +1344,7 @@ def read_command_line_parameters(argv):
         optlist, free = getopt.getopt(argv[1:], 'dhizf:p:t:',
             ['license=', 'copyright=', 'title=',
                 'description=', 'year=', 'parser=',
+                'fs=', 'ls=',
                 'sd', 'odyssey', 'xml', 'kobo', 'csv',
                 'output-odyssey', 'output-sd', 'output-xml', 'output-kobo', 'output-csv',
                 'output-epub'])
@@ -1436,6 +1437,16 @@ def read_command_line_parameters(argv):
     else:
         parser_filename = None
 
+    if '--fs' in optdict:
+        fs = escape(optdict['--fs'])
+    else:
+        fs = "\t"
+
+    if '--ls' in optdict:
+        ls = escape(optdict['--ls'])
+    else:
+        ls = "\n"
+    
     debug = False
     if '-d' in optdict:
         debug = True
@@ -1451,8 +1462,24 @@ def read_command_line_parameters(argv):
     return [ prefix, language_from, language_to,
              license_string, copyright_string, title, description, year,
              debug, ignore_case, parser_filename, create_zip,
-             input_format, output_format ]
+             input_format, output_format, fs, ls ]
 ### END read_command_line_parameters ###
+
+
+### BEGIN escape ###
+# escape(s)
+# escape ASCII sequences
+def escape(s):
+    s = s.replace("\\0", "\0")
+    s = s.replace("\\a", "\a")
+    s = s.replace("\\b", "\b")
+    s = s.replace("\\t", "\t")
+    s = s.replace("\\n", "\n")
+    s = s.replace("\\v", "\v")
+    s = s.replace("\\f", "\f")
+    s = s.replace("\\r", "\r")
+    return s
+### END escape ###
 
 
 ### BEGIN print_config ###
@@ -1667,6 +1694,8 @@ def usage():
     print_(" --description <string> : set the description string to <string>")
     print_(" --year <string>        : set the year string to <string>")
     print_(" --parser <parser.py>   : use <parser.py> to parse the input dictionary")
+    print_(" --fs <string>          : use <string> as CSV field separator, escaping ASCII sequences (default: \\t)")
+    print_(" --ls <string>          : use <string> as CSV line separator, escaping ASCII sequences (default: \\n)")
     print_("")
     print_("Examples:")
     print_("$ %s %s -h" % (e, s))
@@ -1680,6 +1709,7 @@ def usage():
     print_("$ %s %s --odyssey -p bar -f en -t en --output-epub" % (e, s))
     print_("$ %s %s           -p bar -f en -t it --title \"My EN->IT dictionary\" --year 2012 --license \"CC-BY-NC-SA 3.0\"" % (e, s))
     print_("$ %s %s           -p foo -f en -t en --parser foo_parser.py --title \"Custom EN dictionary\"" % (e, s))
+    print_("$ %s %s --xml     -p foo -f en -t en --output-csv --fs \"\\t\\t\" --ls \"\\n\" " % (e, s))
     print_("")
 ### END usage ###
 
@@ -1700,7 +1730,9 @@ def main():
       parser_filename,
       create_zip,
       input_format,
-      output_format ] = read_command_line_parameters(sys.argv)
+      output_format,
+      fs,
+      ls ] = read_command_line_parameters(sys.argv)
 
     type_sequence = 'unknown'
 
@@ -1758,7 +1790,10 @@ def main():
         readable = check_csv_file(csv_input_filename)
         if not readable:
             print_error("File " + csv_input_filename + " not found.")
-
+        if len(fs) < 1:
+            print_error("CSV field separator must have length at least one.")
+        if len(ls) < 1:
+            print_error("CSV line separator must have length at least one.")
 
     # check parser input file, if one was given
     parser = check_parser(parser_filename)
@@ -1832,6 +1867,11 @@ def main():
             compressed_dictionary_filename = "new." + compressed_dictionary_filename
     
     if output_format == 'csv':
+        if len(fs) < 1:
+            print_error("CSV field separator must have length at least one!")
+        if len(ls) < 1:
+            print_error("CSV line separator must have length at least one.")
+
         dictionary_filename = prefix + ".csv"
         index_filename = ''
         info_filename = ''
@@ -1897,7 +1937,7 @@ def main():
         data = read_from_kobo_format(kobo_input_filename, ignore_case)
     
     if input_format == 'csv':
-        data = read_from_csv_format(csv_input_filename, ignore_case)
+        data = read_from_csv_format(csv_input_filename, fs, ls, ignore_case)
 
 
     # parse input files
@@ -1950,7 +1990,7 @@ def main():
     # write out to CSV format
     if output_format == 'csv':
         print_info('Outputting in CSV format to file...')
-        write_to_csv_format(config, parsed_data, debug)
+        write_to_csv_format(config, parsed_data, fs, ls, debug)
         print_info("File " + dictionary_filename + " created successfully!")
     
     # write out to EPUB format

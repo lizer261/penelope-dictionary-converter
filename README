@@ -1,6 +1,6 @@
 Penelope is a multi-tool for creating, editing and converting dictionaries, especially for eReader devices.
 
-With the current version (v. 1.15, 2013-01-10) you can:
+With the current version (v. 1.16, 2013-01-11) you can:
   * convert a dictionary FROM/TO the following formats:
     * Bookeen Cybook Odyssey
     * Kobo
@@ -13,11 +13,31 @@ With the current version (v. 1.15, 2013-01-10) you can:
 Future versions will include support for merging
 multiple input dictionaries into a single one.
 
+----
+
+*USAGE EXAMPLES*
+
+{{{
+$ python penelope.py -h
+$ python penelope.py           -p foo -f en -t en
+$ python penelope.py           -p bar -f en -t it
+$ python penelope.py --xml     -p foo -f en -t en
+$ python penelope.py --xml     -p foo -f en -t en --output-sd
+$ python penelope.py           -p bar -f en -t it --output-kobo
+$ python penelope.py           -p bar -f en -t it --output-xml -i
+$ python penelope.py --kobo    -p bar -f it -t it --output-epub
+$ python penelope.py --odyssey -p bar -f en -t en --output-epub
+$ python penelope.py           -p bar -f en -t it --title "My EN->IT dictionary" --year 2012 --license "CC-BY-NC-SA 3.0"
+$ python penelope.py           -p foo -f en -t en --parser foo_parser.py --title "Custom EN dictionary"
+$ python penelope.py --xml     -p foo -f en -t en --output-csv --fs "\t\t" --ls "\n" 
+}}}
+
 Please have a look at this web page for details:
 http://www.albertopettarin.it/penelope.html
 
 ----
 
+*TECHNICAL NOTES*
 The current version runs both under Python 2 or Python 3,
 and it has been tested under Linux (Debian, Fedora) and Windows (XP, 7).
 Unfortunately, since I do not have any financial support for the project,
@@ -32,7 +52,8 @@ containing the word "Penelope" in the subject. Thanks!
 
 ----
 
-*ACKNOWLEDGMENTS:* many thanks to:
+*ACKNOWLEDGMENTS*
+Many thanks to:
   * _uwelovesdonna_ for contributing ideas for improving the code and for setting up many pages of the project wiki;
   * _Jens Sadowski_ for pointing out a bug with Unicode file names and for suggesting using multiset dict() instead of set dict();
   * _oldnat_ for pointing out a bug under Windows and Python3;
