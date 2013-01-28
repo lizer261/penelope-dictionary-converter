@@ -1,15 +1,17 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012, 2013 Alberto Pettarin (pettarin gmail.com)'
-__version__     = 'v1.16'
-__date__        = '2013-01-11'
+__version__     = 'v1.17'
+__date__        = '2013-01-28'
 __description__ = 'Penelope is a multi-tool for creating, editing and converting dictionaries, especially for eReader devices'
 
 
 ### BEGIN changelog ###
 #
+# 1.17 Changed the sqlite collation function, to mimic NOCASE (see: http://www.sqlite.org/datatype3.html), and added support for custom collation support.
 # 1.16 Added a command line option for specifying the field and/or line separator for CSV input/output
 # 1.15 Added read from CSV (courtesy of Wolfgang Miller-Reichling). Code clean-up
 # 1.14 Added read from Kobo and Odyssey format, write to XML format, and output EPUB dictionary
@@ -50,16 +52,25 @@ MARISA_REVERSE_LOOKUP_PATH="/home/alberto/.bin/marisa-0.2.0/tools/marisa-reverse
 ### Path to working MARISA executables ###
 
 
-
-### BEGIN collate_function ###
-# collate_function(string1, string2)
+### BEGIN collate_function_default ###
+# collate_function_default(string1, string2)
 # define the string comparison function for the index file
-def collate_function(string1, string2):
-    if (string1.lower() == string2.lower()):
+def collate_function_default(string1, string2):
+    b1 = bytearray(string1, 'utf-8').lower()
+    b2 = bytearray(string2, 'utf-8').lower()
+    if (b1 == b2):
         return 0
     else:
-        return -1 if (string1.lower() < string2.lower()) else 1
-### END collate_function ###
+        return -1 if (b1 < b2) else 1
+#
+# OLD VERSION
+#def collate_function(string1, string2):
+#    if (string1.lower() == string2.lower()):
+#        return 0
+#    else:
+#        return -1 if (string1.lower() < string2.lower()) else 1
+#
+### END collate_function_default ###
 
 
 ### BEGIN read_from_stardict_format ###
@@ -182,10 +193,6 @@ def read_from_odyssey_format(idx_input_filename, dict_input_filename, ignore_cas
     # open index
     sql_connection = sqlite3.connect(idx_input_filename)
     
-    # install collation in the index
-    #sql_connection.create_collation("IcuNoCase", collate_function)
-    #sql_connection.text_factory = str
-
     # get a cursor
     sql_cursor = sql_connection.cursor()
     # get the index data
@@ -328,7 +335,7 @@ def read_from_csv_format(csv_input_filename, fs, ls, ignore_case):
 
 
 ### BEGIN write_to_odyssey_format ###
-# write_to_odyssey_format(config, data, debug)
+# write_to_odyssey_format(config, data, collation_function, debug)
 # write data to the Odyssey format, using the config settings
 #
 # config = [ dictionary_filename, index_filename, language_from, language_to,
@@ -342,7 +349,7 @@ def read_from_csv_format(csv_input_filename, fs, ls, ignore_case):
 #        synonyms is a list of alternative strings for word
 #        substitutions is a list of pairs [ word_to_replace, replacement ]
 #        definition is the definition of word
-def write_to_odyssey_format(config, data, debug):
+def write_to_odyssey_format(config, data, collation, debug):
 
     # Note: chunks on Odyssey seems have size between
     # 262144 = 2^18 and 524288 = 2^19 bytes
@@ -372,7 +379,12 @@ def write_to_odyssey_format(config, data, debug):
     sql_connection = sqlite3.connect(index_filename)
 
     # install collation in the index
-    sql_connection.create_collation("IcuNoCase", collate_function)
+    if collation == None:
+        print_info("Using built-in collation function...")
+        sql_connection.create_collation("IcuNoCase", collate_function_default)
+    else:
+        print_info("Using custom collation function...")
+        sql_connection.create_collation("IcuNoCase", collation.collate_function)
     sql_connection.text_factory = str
 
     # get a cursor
@@ -1334,6 +1346,7 @@ def compress_StarDict_dictionary(dictionary_filename, compressed_dictionary_file
 # --output-kobo : output format is Kobo
 # --output-csv : output format is CSV
 # --output-epub : output format is epub
+# --collation : collation function to be used while outputting to Bookeen Cybook Odyssey format
 def read_command_line_parameters(argv):
 
     try:
@@ -1343,7 +1356,8 @@ def read_command_line_parameters(argv):
                 'fs=', 'ls=',
                 'sd', 'odyssey', 'xml', 'kobo', 'csv',
                 'output-odyssey', 'output-sd', 'output-xml', 'output-kobo', 'output-csv',
-                'output-epub'])
+                'output-epub',
+                'collation='])
     #Python2#
     except getopt.GetoptError, err:
     #Python3#    except getopt.GetoptError as err:
@@ -1455,10 +1469,15 @@ def read_command_line_parameters(argv):
     if '-z' in optdict:
         create_zip = True
 
+    if '--collation' in optdict:
+        collation_filename = optdict['--collation']
+    else:
+        collation_filename = None
+
     return [ prefix, language_from, language_to,
              license_string, copyright_string, title, description, year,
              debug, ignore_case, parser_filename, create_zip,
-             input_format, output_format, fs, ls ]
+             input_format, output_format, fs, ls, collation_filename ]
 ### END read_command_line_parameters ###
 
 
@@ -1611,6 +1630,25 @@ def check_parser(parser_filename):
 ### END check_parser ###
 
 
+### BEGIN check_collation ###
+# check_collation(collation_filename)
+# checks that collation_filename exists and can be loaded
+def check_collation(collation_filename):
+    if collation_filename == None:
+        return None
+
+    if not os.path.isfile(collation_filename):
+        return None
+    try:
+        collation = imp.load_source('', collation_filename)
+        collation.collate_function('', '')
+    except Exception:
+        return None
+
+    return collation
+### END check_collation ###
+
+
 ### BEGIN check_existence ###
 # check_existence(filename)
 # checks whether filename exists
@@ -1690,6 +1728,7 @@ def usage():
     print_(" --description <string> : set the description string to <string>")
     print_(" --year <string>        : set the year string to <string>")
     print_(" --parser <parser.py>   : use <parser.py> to parse the input dictionary")
+    print_(" --collation <coll.py>  : use <coll.py> as collation function when outputting in Bookeen Cybook Odyssey format")
     print_(" --fs <string>          : use <string> as CSV field separator, escaping ASCII sequences (default: \\t)")
     print_(" --ls <string>          : use <string> as CSV line separator, escaping ASCII sequences (default: \\n)")
     print_("")
@@ -1705,6 +1744,7 @@ def usage():
     print_("$ %s %s --odyssey -p bar -f en -t en --output-epub" % (e, s))
     print_("$ %s %s           -p bar -f en -t it --title \"My EN->IT dictionary\" --year 2012 --license \"CC-BY-NC-SA 3.0\"" % (e, s))
     print_("$ %s %s           -p foo -f en -t en --parser foo_parser.py --title \"Custom EN dictionary\"" % (e, s))
+    print_("$ %s %s           -p foo -f en -t en --collation custom_collation.py" % (e, s))
     print_("$ %s %s --xml     -p foo -f en -t en --output-csv --fs \"\\t\\t\" --ls \"\\n\" " % (e, s))
     print_("")
 ### END usage ###
@@ -1728,7 +1768,8 @@ def main():
       input_format,
       output_format,
       fs,
-      ls ] = read_command_line_parameters(sys.argv)
+      ls,
+      collation_filename ] = read_command_line_parameters(sys.argv)
 
     type_sequence = 'unknown'
 
@@ -1796,6 +1837,10 @@ def main():
     if parser_filename != None and parser == None:
         print_error("Parser " + parser_filename + " not found or with no parse(data, type_sequence, ignore_case) function.")
 
+    # check collation input file, if one was given
+    collation = check_collation(collation_filename)
+    if collation_filename != None and collation == None:
+        print_error("Collation " + collation_filename + " not found or with no collate_function(string1, string2) function.")
 
     # set output filenames
     if output_format == 'odyssey':
@@ -1951,7 +1996,7 @@ def main():
     # write out to Odyssey format
     if output_format == 'odyssey':
         print_info('Outputting in Odyssey format to file...')
-        write_to_odyssey_format(config, parsed_data, debug)
+        write_to_odyssey_format(config, parsed_data, collation, debug)
         print_info("Files " + dictionary_filename + " and " + index_filename + " created successfully!")
 
         # create zip .install file, if the user asked for it
