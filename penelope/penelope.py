@@ -4,13 +4,14 @@
 __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012, 2013 Alberto Pettarin (pettarin gmail.com)'
-__version__     = 'v1.17'
-__date__        = '2013-01-28'
+__version__     = 'v1.18'
+__date__        = '2013-02-25'
 __description__ = 'Penelope is a multi-tool for creating, editing and converting dictionaries, especially for eReader devices'
 
 
 ### BEGIN changelog ###
 #
+# 1.18 Added -l switch to MARISA_BUILD call, added F_CollationLevel to Odyssey output
 # 1.17 Changed the sqlite collation function, to mimic NOCASE (see: http://www.sqlite.org/datatype3.html), and added support for custom collation support.
 # 1.16 Added a command line option for specifying the field and/or line separator for CSV input/output
 # 1.15 Added read from CSV (courtesy of Wolfgang Miller-Reichling). Code clean-up
@@ -508,10 +509,11 @@ def write_to_odyssey_format(config, data, collation, debug):
     sql_cursor.execute('update T_DictInfo set F_Description=?', (description,))
     sql_cursor.execute('update T_DictInfo set F_Year=?', (year,))
     sql_cursor.execute('update T_DictInfo set F_Alphabet=?', ('Z',))
+    sql_cursor.execute('update T_DictInfo set F_CollationLevel=?', ('1',))
 
     # these two fields might be unused
     sql_cursor.execute('update T_DictVersion set F_DictType=?', ('stardict',))
-    sql_cursor.execute('update T_DictVersion set F_Version=?', ('1',))
+    sql_cursor.execute('update T_DictVersion set F_Version=?', ('11',))
 
     # compact and close index
     sql_cursor.execute('VACUUM')
@@ -1211,7 +1213,7 @@ def write_to_kobo_format(config, data, debug):
 
     # compress index with MARISA
     print_info("Creating compressed index file " + index_filename + "...") 
-    p = subprocess.Popen([MARISA_BUILD_PATH, "-o", index_filename], stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen([MARISA_BUILD_PATH, "-l", "-o", index_filename], stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     p.communicate(input=index_file)
     fileNames += [ index_filename ]
 
