@@ -4,13 +4,14 @@
 __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012, 2013 Alberto Pettarin (pettarin gmail.com)'
-__version__     = 'v1.18'
-__date__        = '2013-02-25'
+__version__     = 'v1.19'
+__date__        = '2013-04-23'
 __description__ = 'Penelope is a multi-tool for creating, editing and converting dictionaries, especially for eReader devices'
 
 
 ### BEGIN changelog ###
 #
+# 1.19 Added merging multiple dictionaries
 # 1.18 Added -l switch to MARISA_BUILD call, added F_CollationLevel to Odyssey output
 # 1.17 Changed the sqlite collation function, to mimic NOCASE (see: http://www.sqlite.org/datatype3.html), and added support for custom collation support.
 # 1.16 Added a command line option for specifying the field and/or line separator for CSV input/output
@@ -1325,10 +1326,10 @@ def compress_StarDict_dictionary(dictionary_filename, compressed_dictionary_file
 ### BEGIN read_command_line_parameters ###
 # read_command_line_parameters()
 # read the command line parameters, and return the following list:
-# config = [ prefix, language_from, language_to,
+# config = [ prefix_list, language_from, language_to,
 #            license, copyright, title, description, year
 #            debug, ignore_case, parser_filename, create_zip, input_format ]
-# -p : prefix
+# -p : prefix list
 # -f : language from
 # -t : language to
 # -d : debug mode
@@ -1377,9 +1378,10 @@ def read_command_line_parameters(argv):
         usage()
         sys.exit(0)
 
-    prefix = ''
+    prefix_list = []
     if '-p' in optdict:
-        prefix = optdict['-p']
+        for s in optdict['-p'].split(","):
+            prefix_list.append(s.strip())
     else:
         print_error('No prefix parameter was supplied.')
 
@@ -1480,7 +1482,7 @@ def read_command_line_parameters(argv):
     else:
         collation_filename = None
 
-    return [ prefix, language_from, language_to,
+    return [ prefix_list, language_from, language_to,
              license_string, copyright_string, title, description, year,
              debug, ignore_case, parser_filename, create_zip,
              input_format, output_format, fs, ls, collation_filename ]
@@ -1705,10 +1707,10 @@ def usage():
     #Python3#
     s = "penelope3.py"
     print_("")
-    print_("$ %s %s -p <prefix> -f <language_from> -t <language_to> [OPTIONS]" % (e, s))
+    print_("$ %s %s -p <prefix list> -f <language_from> -t <language_to> [OPTIONS]" % (e, s))
     print_("")
     print_("Required arguments:")
-    print_(" -p <prefix>            : name of the dictionary to be converted (without extension)")
+    print_(" -p <prefix list>       : list of the dictionaries to be merged/converted (without extension, comma separated)")
     print_(" -f <language_from>     : ISO 631-2 code language_from of the dictionary to be converted")
     print_(" -t <language_to>       : ISO 631-2 code language_to of the dictionary to be converted")
     print_("")
@@ -1742,6 +1744,7 @@ def usage():
     print_("$ %s %s -h" % (e, s))
     print_("$ %s %s           -p foo -f en -t en" % (e, s))
     print_("$ %s %s           -p bar -f en -t it" % (e, s))
+    print_("$ %s %s           -p \"bar,foo,zam\" -f en -t it" % (e, s))
     print_("$ %s %s --xml     -p foo -f en -t en" % (e, s))
     print_("$ %s %s --xml     -p foo -f en -t en --output-sd" % (e, s))
     print_("$ %s %s           -p bar -f en -t it --output-kobo" % (e, s))
@@ -1759,7 +1762,7 @@ def usage():
 ### BEGIN main ###
 def main():
     # read command line parameters
-    [ prefix,
+    [ prefix_list,
       language_from,
       language_to,
       license_string,
@@ -1781,62 +1784,84 @@ def main():
 
     # set input filenames
     if input_format == 'sd':
-        # check ifo input file
-        ifo_input_filename = prefix + ".ifo"
-        readable, type_sequence = check_ifo_file(ifo_input_filename)
-        if not readable:
-            print_error("File " + ifo_input_filename + " not found or with wrong format.")
-        print_info("Input dictionary has sequence type '" + type_sequence + "'.")
+        ifo_input_filename_list = []
+        idx_input_filename_list = []
+        dict_input_filename_list = []
+        for prefix in prefix_list:
+            # check ifo input file
+            ifo_input_filename = prefix + ".ifo"
+            readable, type_sequence = check_ifo_file(ifo_input_filename)
+            if not readable:
+                print_error("File " + ifo_input_filename + " not found or with wrong format.")
+            print_info("Input dictionary has sequence type '" + type_sequence + "'.")
+            ifo_input_filename_list.append(ifo_input_filename)
 
-        # check idx input file, uncompressing it if it was compressed
-        idx_input_filename = prefix + ".idx"
-        readable = check_idx_file(idx_input_filename)
-        if not readable:
-            print_error("File " + idx_input_filename + " not found (even compressed).")
+            # check idx input file, uncompressing it if it was compressed
+            idx_input_filename = prefix + ".idx"
+            readable = check_idx_file(idx_input_filename)
+            if not readable:
+                print_error("File " + idx_input_filename + " not found (even compressed).")
+            idx_input_filename_list.append(idx_input_filename)
 
-        # check dict input file, uncompressing it if it was compressed
-        dict_input_filename = prefix + ".dict"
-        readable = check_dict_file(dict_input_filename)
-        if not readable:
-            print_error("File " + dict_input_filename + " not found (even compressed).")
+            # check dict input file, uncompressing it if it was compressed
+            dict_input_filename = prefix + ".dict"
+            readable = check_dict_file(dict_input_filename)
+            if not readable:
+                print_error("File " + dict_input_filename + " not found (even compressed).")
+            dict_input_filename_list.append(dict_input_filename)
 
     if input_format == 'xml':
-        # check xml input file
-        xml_input_filename = prefix + ".xml"
-        readable = check_xml_file(xml_input_filename)
-        if not readable:
-            print_error("File " + xml_input_filename + " not found.")
+        xml_input_filename_list = []
+        for prefix in prefix_list:
+            # check xml input file
+            xml_input_filename = prefix + ".xml"
+            readable = check_xml_file(xml_input_filename)
+            if not readable:
+                print_error("File " + xml_input_filename + " not found.")
+            xml_input_filename_list.append(xml_input_filename)
 
     if input_format == 'odyssey':
-        # check idx input file, uncompressing it if it was compressed
-        idx_input_filename = prefix + ".dict.idx"
-        readable = check_idx_file(idx_input_filename)
-        if not readable:
-            print_error("File " + idx_input_filename + " not found (even compressed).")
+        idx_input_filename_list = []
+        dict_input_filename_list = []
+        for prefix in prefix_list:
+            # check idx input file, uncompressing it if it was compressed
+            idx_input_filename = prefix + ".dict.idx"
+            readable = check_idx_file(idx_input_filename)
+            if not readable:
+                print_error("File " + idx_input_filename + " not found (even compressed).")
+            idx_input_filename_list.append(idx_input_filename)
 
-        # check dict input file, uncompressing it if it was compressed
-        dict_input_filename = prefix + ".dict"
-        readable = check_dict_file(dict_input_filename)
-        if not readable:
-            print_error("File " + dict_input_filename + " not found (even compressed).")
+            # check dict input file, uncompressing it if it was compressed
+            dict_input_filename = prefix + ".dict"
+            readable = check_dict_file(dict_input_filename)
+            if not readable:
+                print_error("File " + dict_input_filename + " not found (even compressed).")
+            dict_input_filename_list.append(dict_input_filename)
 
     if input_format == 'kobo':
-        # check kobo input file
-        kobo_input_filename = prefix + ".zip"
-        readable = check_kobo_file(kobo_input_filename)
-        if not readable:
-            print_error("File " + kobo_input_filename + " not found.")
+        kobo_input_filename_list = []
+        for prefix in prefix_list:
+            # check kobo input file
+            kobo_input_filename = prefix + ".zip"
+            readable = check_kobo_file(kobo_input_filename)
+            if not readable:
+                print_error("File " + kobo_input_filename + " not found.")
+            kobo_input_filename_list.append(kobo_input_filename)
 
     if input_format == 'csv':
-        # check csv input file
-        csv_input_filename = prefix + ".csv"
-        readable = check_csv_file(csv_input_filename)
-        if not readable:
-            print_error("File " + csv_input_filename + " not found.")
         if len(fs) < 1:
             print_error("CSV field separator must have length at least one.")
         if len(ls) < 1:
             print_error("CSV line separator must have length at least one.")
+        
+        csv_input_filename_list = []
+        for prefix in prefix_list:
+            # check csv input file
+            csv_input_filename = prefix + ".csv"
+            readable = check_csv_file(csv_input_filename)
+            if not readable:
+                print_error("File " + csv_input_filename + " not found.")
+            csv_input_filename_list.append(csv_input_filename)
 
     # check parser input file, if one was given
     parser = check_parser(parser_filename)
@@ -1851,7 +1876,7 @@ def main():
     # set output filenames
     if output_format == 'odyssey':
         if language_from == language_to:
-            dictionary_filename = language_from + "." + prefix + ".dict"
+            dictionary_filename = language_from + "." + prefix_list[0] + ".dict"
         else:
             dictionary_filename = language_from + "-" + language_to + ".dict"
         index_filename =  dictionary_filename + ".idx"
@@ -1865,9 +1890,9 @@ def main():
             index_filename = "new." + index_filename
 
     if output_format == 'sd':
-        dictionary_filename = prefix + ".dict"
-        index_filename = prefix + ".idx"
-        info_filename = prefix + ".ifo"
+        dictionary_filename = prefix_list[0] + ".dict"
+        index_filename = prefix_list[0] + ".idx"
+        info_filename = prefix_list[0] + ".ifo"
         compressed_dictionary_filename = dictionary_filename + ".dz"
 
         existing = False
@@ -1882,7 +1907,7 @@ def main():
             compressed_dictionary_filename = dictionary_filename + ".dz"
 
     if output_format == 'xml':
-        dictionary_filename = prefix + ".xml"
+        dictionary_filename = prefix_list[0] + ".xml"
         index_filename = ''
         info_filename = ''
 
@@ -1919,7 +1944,7 @@ def main():
         if len(ls) < 1:
             print_error("CSV line separator must have length at least one.")
 
-        dictionary_filename = prefix + ".csv"
+        dictionary_filename = prefix_list[0] + ".csv"
         index_filename = ''
         info_filename = ''
 
@@ -1929,7 +1954,7 @@ def main():
             dictionary_filename = "new." + dictionary_filename
 
     if output_format == 'epub':
-        dictionary_filename = prefix + ".epub"
+        dictionary_filename = prefix_list[0] + ".epub"
         index_filename = ''
         info_filename = ''
 
@@ -1969,26 +1994,39 @@ def main():
 
 
     # read input files
-    print_info('Reading input dictionary...')
+    print_info('Reading input dictionaries...')
     # data = [ [word, definition] ]
+    data = []
     if input_format == 'sd':
-        data = read_from_stardict_format(idx_input_filename, dict_input_filename, ignore_case)
+        for i in range(len(prefix_list)):
+            idx_input_filename = idx_input_filename_list[i]
+            dict_input_filename = dict_input_filename_list[i]
+            data += read_from_stardict_format(idx_input_filename, dict_input_filename, ignore_case)
 
     if input_format == 'xml':
-        data = read_from_xml_format(xml_input_filename, ignore_case)
+        for i in range(len(prefix_list)):
+            xml_input_filename = xml_input_filename_list[i]
+            data += read_from_xml_format(xml_input_filename, ignore_case)
 
     if input_format == 'odyssey':
-        data = read_from_odyssey_format(idx_input_filename, dict_input_filename, ignore_case)
+        for i in range(len(prefix_list)):
+            idx_input_filename = idx_input_filename_list[i]
+            dict_input_filename = dict_input_filename_list[i]
+            data += read_from_odyssey_format(idx_input_filename, dict_input_filename, ignore_case)
 
     if input_format == 'kobo':
-        data = read_from_kobo_format(kobo_input_filename, ignore_case)
+        for i in range(len(prefix_list)):
+            kobo_input_filename = kobo_input_filename_list[i]
+            data += read_from_kobo_format(kobo_input_filename, ignore_case)
     
     if input_format == 'csv':
-        data = read_from_csv_format(csv_input_filename, fs, ls, ignore_case)
+        for i in range(len(prefix_list)):
+            csv_input_filename = csv_input_filename_list[i]
+            data += read_from_csv_format(csv_input_filename, fs, ls, ignore_case)
 
 
     # parse input files
-    print_info('Parsing the input dictionary...')
+    print_info('Parsing the input data...')
     parsed_data = []
     if parser == None:
         print_info('Using the built-in parser...')

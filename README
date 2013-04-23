@@ -1,19 +1,26 @@
 Penelope is a multi-tool for creating, editing and converting dictionaries, especially for eReader devices.
 
-With the current version (v. 1.18, 2013-02-25) you can:
+With the current version (v. 1.19, 2013-04-23) you can:
   * convert a dictionary FROM/TO the following formats:
-    * Bookeen Cybook Odyssey
-    * Kobo
-    * StarDict
-    * XML
-    * CSV
+    * Bookeen Cybook Odyssey (R/W)
+    * Kobo (R index only, W unencrypted/unobfuscated only)
+    * StarDict (R/W)
+    * XML (R/W)
+    * CSV (R/W)
+  * merge more dictionaries (of the same type) into a single dictionary
   * define your own parser for each word/definition
   * define your own collation function when outputting to Bookeen Cybook Odyssey format
   * generate an EPUB file containing the index of a given dictionary (e.g., to cope with the lack of a search function on your eReader)
 
-Future versions will include:
-  * support for merging multiple input dictionaries into a single one, and
-  * PRC/MOBI support. 
+The next version will include:
+  * PRC/MOBI support
+  * substantial code refactoring
+
+----
+
+*IMPORTANT UPDATE (2013-04-23)*
+
+It seems that Kobo, with firmware 2.5.0, requires the dictionaries to be encrypted/obfuscated. Hence, the dictionaries output by Penelope do not longer work on Kobo devices. I contacted Kobo staff via Twitter, and they forwarded the notice to their development team. I hope they will fix the issue with a new firmware release soon. Meanwhile, if you need your custom-made dictionaries, you must stay with or revert to firmware 2.4.0. 
 
 ----
 
@@ -23,6 +30,7 @@ Future versions will include:
 $ python penelope.py -h
 $ python penelope.py           -p foo -f en -t en
 $ python penelope.py           -p bar -f en -t it
+$ python penelope.py           -p "bar,foo,zam" -f en -t it
 $ python penelope.py --xml     -p foo -f en -t en
 $ python penelope.py --xml     -p foo -f en -t en --output-sd
 $ python penelope.py           -p bar -f en -t it --output-kobo
@@ -61,4 +69,5 @@ Many thanks to:
   * _Jens Sadowski_ for pointing out a bug with Unicode file names and for suggesting using multiset dict() instead of set dict();
   * _oldnat_ for pointing out a bug under Windows and Python3;
   * _Wolfgang Miller-Reichling_ for providing the code for reading CSV dictionaries;
-  * _branok_ for providing the idea and initial code for German collation function.  
+  * _branok_ for providing the idea and initial code for German collation function;
+  * _pal_ for suggesting passing -l switch to MARISA_BUILD.
