@@ -4,13 +4,14 @@
 __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012, 2013 Alberto Pettarin (pettarin gmail.com)'
-__version__     = 'v1.19'
-__date__        = '2013-04-23'
+__version__     = 'v1.20'
+__date__        = '2013-09-25'
 __description__ = 'Penelope is a multi-tool for creating, editing and converting dictionaries, especially for eReader devices'
 
 
 ### BEGIN changelog ###
 #
+# 1.20 Added XML escaping/unescaping via xml.sax.saxutils
 # 1.19 Added merging multiple dictionaries
 # 1.18 Added -l switch to MARISA_BUILD call, added F_CollationLevel to Odyssey output
 # 1.17 Changed the sqlite collation function, to mimic NOCASE (see: http://www.sqlite.org/datatype3.html), and added support for custom collation support.
@@ -33,7 +34,7 @@ __description__ = 'Penelope is a multi-tool for creating, editing and converting
 #
 ### END changelog ###
 
-import collections, getopt, gzip, imp, os, sqlite3, struct, subprocess, sys, zipfile
+import collections, getopt, gzip, imp, os, sqlite3, struct, subprocess, sys, zipfile, xml.sax.saxutils
 #Python2#from dictEPUB import dictEPUB
 #Python3#
 from dictEPUB3 import dictEPUB3
@@ -171,7 +172,7 @@ def read_from_xml_format(xml_input_filename, ignore_case):
         end_pos = xml_input.find('</def>', pos)
         definition = xml_input[pos + len('<def>'): end_pos].strip()
 
-        data += [ [ key, definition ] ]
+        data += [ [ xml.sax.saxutils.unescape(key), xml.sax.saxutils.unescape(definition) ] ]
 
         entry_pos = xml_input.find('<entry>', entry_pos + 1)
 
@@ -801,15 +802,15 @@ def write_to_xml_format(config, data, debug):
     f.write("<!DOCTYPE document SYSTEM \"dictionary.dtd\">")
     f.write("<dictionary>")
     for k in keys:
-        word = k
+        word = xml.sax.saxutils.escape(k)
         if type(global_dictionary[k]) is tuple:
             # single keyword
-            definition = global_dictionary[k][4]
+            definition = xml.sax.saxutils.escape(global_dictionary[k][4])
             f.write("<entry><key>%s</key><def>%s</def></entry>" % (word, definition))
         else:
             # multiple keyword
             for sql_tuple in global_dictionary[k]:
-                definition = sql_tuple[4]
+                definition = xml.sax.saxutils.escape(sql_tuple[4])
                 f.write("<entry><key>%s</key><def>%s</def></entry>" % (word, definition))
     f.write("</dictionary>")
     f.close()
@@ -1456,12 +1457,12 @@ def read_command_line_parameters(argv):
         parser_filename = None
 
     if '--fs' in optdict:
-        fs = escape(optdict['--fs'])
+        fs = escape_ascii(optdict['--fs'])
     else:
         fs = "\t"
 
     if '--ls' in optdict:
-        ls = escape(optdict['--ls'])
+        ls = escape_ascii(optdict['--ls'])
     else:
         ls = "\n"
     
@@ -1489,10 +1490,10 @@ def read_command_line_parameters(argv):
 ### END read_command_line_parameters ###
 
 
-### BEGIN escape ###
-# escape(s)
+### BEGIN escape_ascii ###
+# escape_ascii(s)
 # escape ASCII sequences
-def escape(s):
+def escape_ascii(s):
     s = s.replace("\\0", "\0")
     s = s.replace("\\a", "\a")
     s = s.replace("\\b", "\b")
@@ -1502,7 +1503,7 @@ def escape(s):
     s = s.replace("\\f", "\f")
     s = s.replace("\\r", "\r")
     return s
-### END escape ###
+### END escape_ascii ###
 
 
 ### BEGIN print_config ###
