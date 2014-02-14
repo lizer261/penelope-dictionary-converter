@@ -4,13 +4,14 @@
 __license__     = 'GPLv3'
 __author__      = 'Alberto Pettarin (pettarin gmail.com)'
 __copyright__   = '2012, 2013 Alberto Pettarin (pettarin gmail.com)'
-__version__     = 'v1.20'
-__date__        = '2013-09-25'
+__version__     = 'v1.21'
+__date__        = '2014-02-14'
 __description__ = 'Penelope is a multi-tool for creating, editing and converting dictionaries, especially for eReader devices'
 
 
 ### BEGIN changelog ###
 #
+# 1.21 Added encoding="utf-8" to Python3 open(..., "w") calls
 # 1.20 Added XML escaping/unescaping via xml.sax.saxutils
 # 1.19 Added merging multiple dictionaries
 # 1.18 Added -l switch to MARISA_BUILD call, added F_CollationLevel to Odyssey output
@@ -25,7 +26,7 @@ __description__ = 'Penelope is a multi-tool for creating, editing and converting
 # 1.09 Added "b" to open() calls and added unlink(): now penelope works under Windows with Python 2.7.3
 # 1.08 Better management of Kobo output
 # 1.07 Added Kobo output
-# 1.06 ???
+# 1.06 Missing
 # 1.05 Added StarDict output
 # 1.04 Code refactoring before uploading to Google Code
 # 1.03 Fixed a bug when using --xml and --parser
@@ -399,7 +400,7 @@ def write_to_odyssey_format(config, data, collation, debug):
     if debug:
         #Python2#
         debug_file = open("debug." + dictionary_filename, "wb")
-        #Python3#        debug_file = open("debug." + dictionary_filename, "w")
+        #Python3#        debug_file = open("debug." + dictionary_filename, "w", encoding="utf-8")
     
     # split data in chunks of size between MAX_CHUNK_SIZE and 2*MAX_CHUNK_SIZE bytes
     byte_count = 0
@@ -558,7 +559,7 @@ def write_to_stardict_format(config, data, debug):
     if debug:
         #Python2#
         debug_file = open("debug." + dictionary_filename, "wb")
-        #Python3#        debug_file = open("debug." + dictionary_filename, "w")
+        #Python3#        debug_file = open("debug." + dictionary_filename, "w", encoding="utf-8")
 
     # keep a dictionary of words, with their sql_tuples
     global_dictionary = collections.defaultdict(list)
@@ -670,7 +671,7 @@ def write_to_stardict_format(config, data, debug):
     # write info file
     #Python2#
     info_file = open(info_filename, "wb")
-    #Python3#    info_file = open(info_filename, "w")
+    #Python3#    info_file = open(info_filename, "w", encoding="utf-8")
     info_file.write("StarDict's dict ifo file\n")
     info_file.write("version=2.4.2\n")
     info_file.write("wordcount=" + str(len(keys)) + "\n")
@@ -793,7 +794,7 @@ def write_to_xml_format(config, data, debug):
     # output to XML format
     #Python2#
     f = open(dictionary_filename, "wb")
-    #Python3#    f = open(dictionary_filename, "w")
+    #Python3#    f = open(dictionary_filename, "w", encoding="utf-8")
     f.write("<?xml version=\"1.0\" encoding=\"utf-8\"?>")
     f.write("<!DOCTYPE document SYSTEM \"dictionary.dtd\">")
     f.write("<dictionary>")
@@ -918,7 +919,7 @@ def write_to_csv_format(config, data, fs, ls, debug):
     # output to CSV format
     #Python2#
     f = open(dictionary_filename, "wb")
-    #Python3#    f = open(dictionary_filename, "w")
+    #Python3#    f = open(dictionary_filename, "w", encoding="utf-8")
     for k in keys:
         word = k
         if type(global_dictionary[k]) is tuple:
@@ -1085,7 +1086,7 @@ def write_to_kobo_format(config, data, debug):
     if debug:
         #Python2#
         debug_file = open("debug." + dictionary_filename, "wb")
-        #Python3#        debug_file = open("debug." + dictionary_filename, "w")
+        #Python3#        debug_file = open("debug." + dictionary_filename, "w", encoding="utf-8")
 
     # keep a dictionary of words, with their sql_tuples
     global_dictionary = collections.defaultdict(list)
@@ -1177,7 +1178,7 @@ def write_to_kobo_format(config, data, debug):
     for p in fileIDs:
         #Python2#
         f = open(p + ".html", "wb")
-        #Python3#        f = open(p + ".html", "w")
+        #Python3#        f = open(p + ".html", "w", encoding="utf-8")
         f.write("<?xml version=\"1.0\" encoding=\"utf-8\"?><html>")
         for k in fileToKey[p]:
             word = k
@@ -1559,7 +1560,7 @@ def check_idx_file(idx_filename):
         uncompressed_idx_file = open(uncompressed, "wb")
         #Python2#
         compressed_idx_file = gzip.open(compressed, "rb")
-        #Python3#        uncompressed_idx_file = open(uncompressed, "w")
+        #Python3#        uncompressed_idx_file = open(uncompressed, "w", encoding="utf-8")
         #Python3#        compressed_idx_file = gzip.open(compressed, "r")
         uncompressed_idx_file.write(compressed_idx_file.read())
         compressed_idx_file.close()
@@ -2086,6 +2087,8 @@ def main():
 
 
 if __name__ == '__main__':
+    # TODO let the user specify the encoding of the input, when relevant
+    
     #Python2#
     reload(sys)
     #Python2#
